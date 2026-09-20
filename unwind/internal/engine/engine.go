@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,8 +64,19 @@ func (e *Engine) Act(ctx context.Context, sessionID, toolName string, args map[s
 		return nil, fmt.Errorf("marshal args: %w", err)
 	}
 
-	// SEAM: idempotency replay (landed in block 7) goes here, before the
-	// intent row is written -- a replay must not consume a new seq.
+	// Idempotency replay (DECISIONS.md H): a repeated (session_id,
+	// idempotency_key) never consumes a new seq. Every terminal status
+	// replays verbatim, status code included -- api.go's statusCodeFor maps
+	// it the same way it would a fresh call. Only a still-`pending` row
+	// (a previous attempt that crashed mid-flight) is a conflict.
+	if existing, err := e.Ledger.FindByIdempotencyKey(sessionID, idempotencyKey); err == nil {
+		if existing.Status == "pending" {
+			return nil, fmt.Errorf("%w (intent %s)", ErrIdempotencyConflict, existing.ID)
+		}
+		return existing, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("check idempotency key: %w", err)
+	}
 
 	amount := tool.AmountMinor(args)
 
