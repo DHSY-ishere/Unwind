@@ -28,7 +28,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/sessions", s.getSessions)
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
 
-	mux.HandleFunc("POST /v1/sessions/{id}/rollback", notImplemented) // lands in block 5
+	mux.HandleFunc("POST /v1/sessions/{id}/rollback", s.postRollback)
 
 	// Approvals are designed but not built in this session -- see
 	// DECISIONS.md O ("designed but not built in the hackathon window").
@@ -167,6 +167,22 @@ func fullIntentResponse(i *ledger.Intent) map[string]any {
 		}
 	}
 	return m
+}
+
+// postRollback is POST /v1/sessions/{id}/rollback.
+func (s *Server) postRollback(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.Ledger.GetSession(id); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	summary, err := s.Engine.Rollback(r.Context(), id)
+	if err != nil {
+		log.Printf("rollback error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
 }
 
 // getSessions is GET /v1/sessions (DECISIONS.md J).

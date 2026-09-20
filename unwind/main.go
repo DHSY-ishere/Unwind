@@ -44,7 +44,7 @@ func main() {
 		serve,
 		newDemoCmd(),
 		newTimelineCmd(),
-		stub("rollback", "Compensate every committed intent in a session", "block 5"),
+		newRollbackCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

@@ -227,6 +227,46 @@ func reasonSuffix(i *ledger.Intent) string {
 	return ""
 }
 
+func newRollbackCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "rollback <session_id>",
+		Short: "Compensate every committed intent in a session, in descending seq",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			led, eng, err := openEngine()
+			if err != nil {
+				return err
+			}
+			defer led.Close()
+
+			sessionID := args[0]
+			if _, err := led.GetSession(sessionID); err != nil {
+				return fmt.Errorf("session %s not found", sessionID)
+			}
+
+			summary, err := eng.Rollback(cmd.Context(), sessionID)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s compensated=%d  %s uncompensable=%d  %s failed=%d\n\n",
+				colorize(ansiGreen, "↺"), summary.Compensated,
+				colorize(ansiYellow, "⚠"), summary.Uncompensable,
+				colorize(ansiRed, "✗"), summary.Failed)
+
+			sess, err := led.GetSession(sessionID)
+			if err != nil {
+				return err
+			}
+			intents, err := led.ListIntents(sessionID)
+			if err != nil {
+				return err
+			}
+			RenderTimeline(sess, intents)
+			return nil
+		},
+	}
+}
+
 func newTimelineCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "timeline <session_id>",
