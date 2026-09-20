@@ -11,8 +11,12 @@ import (
 )
 
 // geminiModel is a stable (non-preview) model confirmed against the live API
-// to support generateContent + function calling.
-const geminiModel = "gemini-2.5-flash"
+// to support generateContent + function calling. flash-lite specifically
+// because it carries its own separate free-tier quota bucket from
+// gemini-2.5-flash -- discovered the hard way when repeated demo/testing
+// traffic exhausted flash's 20-request/day free tier during this same build
+// session (DECISIONS.md ruling W).
+const geminiModel = "gemini-2.5-flash-lite"
 
 const geminiURLTemplate = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
 

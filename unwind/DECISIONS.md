@@ -571,6 +571,38 @@ by accident, only by a deliberate, auditable override."
 
 ---
 
+### W. EC2 deploy, and a Gemini quota discovery it surfaced
+
+**Deploy.** On request, the project is deployed to a real EC2 instance
+(`t3.micro`, Amazon Linux 2023, `eu-north-1`) rather than left as
+localhost-only. The Go binary is cross-compiled (`GOOS=linux GOARCH=amd64`)
+and runs as a systemd unit (`unwind.service`, `Restart=on-failure`), fronted
+by a security group open on 22 and 8080 only. Provisioning used a standalone
+scratch Go module against `aws-sdk-go-v2/service/ec2` -- deliberately kept
+**out of the application's own `go.mod`**, since deploy tooling isn't a
+runtime dependency of the product.
+
+The deployed instance's `.env` carries only `GEMINI_API_KEY` -- **not** the
+AWS credentials. The IAM user now holds `AmazonEC2FullAccess` (added for this
+deploy) alongside S3 and Bedrock, which is real blast radius; putting those
+keys on a public-facing box would mean anyone who ever reads that box's disk
+could launch or terminate arbitrary EC2 resources in the account. S3
+archiving therefore only works from a local run, not the deployed one -- the
+same "don't grant more than the task in front of you needs" call made
+throughout this project, applied to itself.
+
+**What deploying it caught:** the real-agent demo started returning `429
+RESOURCE_EXHAUSTED` -- the Gemini free tier caps `gemini-2.5-flash` at 20
+requests/day, and this build's own testing across the session had already
+spent that budget before the deployed instance took its first request.
+`gemini-2.5-flash-lite` carries a **separate** free-tier quota bucket and was
+confirmed (against the live API, not assumed) to support the identical
+function-calling shape. `internal/llmagent/gemini.go`'s `geminiModel`
+constant now points there. Nothing else about the driver changed -- same
+request/response shapes, same tool schemas, same loop.
+
+---
+
 ## Build order
 
 | Slice | Delivers |
