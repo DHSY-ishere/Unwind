@@ -391,6 +391,58 @@ existing pipeline.
 
 ---
 
+### T. The real agent -- a genuine tool-use loop, raw HTTP, additive only
+
+**Context.** SPEC.md always specified a real Anthropic driver ("direct HTTP to
+the Anthropic Messages API, tool-use loop, no SDK") as the actual agent; it
+was deferred as a stretch goal in the original build (ruling K) and never
+built (ruling O). Built now, on request, as a genuine third addition -- not a
+replacement for the scripted or swarm drivers, which remain the primary,
+key-free, deterministic demo path.
+
+**What it is.** `internal/llmagent` is a small raw-HTTP client (no SDK,
+matching SPEC.md's own instruction) plus a bounded tool-use loop
+(`RunAgent`): Claude Opus 5 is given the three real tool schemas (matching
+tool args exactly, paise and all -- ruling N) plus one extra, `get_world_state`,
+a read-only tool that exists **only for this driver** so the model can see
+real vendor/invoice/account ids before acting, exactly as the cut
+`list_vendors` would have (ruling L) -- it is not part of `tools.Registry`
+and is never ledgered. `POST /v1/agent/run` wires the three real tool calls
+straight through `Engine.Act` (the exact same pipeline every other driver
+uses -- policy gate, capture, compensation record, all of it) and publishes
+every decision to the live ticker with agent name "Claude" so a real model's
+choices show up exactly like the scripted and swarm runs.
+
+**Guardrails, because this is the one driver whose behavior isn't fully
+determined by code:**
+- Hard bounds regardless of what the model decides: `maxTurns = 12`,
+  `maxToolCalls = 20` (`internal/llmagent/agent.go`). An agentic loop against
+  a real system must never be allowed to run unbounded.
+- `ANTHROPIC_API_KEY` is read from the server process's environment at
+  request time, via a plain `os.Getenv` -- not any credential-profile
+  resolution. A missing key returns `503` with a clear message rather than a
+  crash or a silent no-op; the scripted and swarm drivers are entirely
+  unaffected by whether it's set.
+- Because the key is read from the process's own environment (fixed at
+  `unwind serve`'s start, per normal OS process semantics), exporting it in
+  another shell after the server is already running has no effect -- the
+  server must be restarted with the variable set.
+- Blocked/failed tool results are fed back to the model as a normal (if
+  `is_error: true`) tool result, with the policy reason included, so the
+  model can see it was stopped and move on -- per its system prompt
+  instruction not to retry a blocked call.
+
+**Not verified live in this session.** No `ANTHROPIC_API_KEY` (or `ant`
+credential profile) was available in the build environment, so the actual
+tool-use loop against the real API could not be exercised here. The `503`
+missing-key path, the request/response JSON shapes (built from documented
+Messages API examples, not guessed), and every other driver were verified.
+This is the one piece of the project running on read-the-docs-correctly
+rather than a green checkmark -- test it with a real key before relying on it
+for a recording.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

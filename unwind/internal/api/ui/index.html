@@ -377,6 +377,28 @@
   .uw-ticker-status-compensated { color: #7ee0a6; }
   .uw-ticker-status-uncompensable { color: #ffd479; }
 
+  /* ---------- real agent transcript ---------- */
+
+  .uw-agent-text {
+    background: rgba(124, 92, 255, 0.08);
+    border: 1px solid rgba(124, 92, 255, 0.2);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    animation: uw-ticker-in 0.3s ease;
+  }
+  .uw-agent-error {
+    background: var(--red-bg);
+    border: 1px solid rgba(223,27,65,0.25);
+    color: var(--red);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
   /* ---------- launch feed ---------- */
 
   #launch-feed { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -658,6 +680,23 @@
       </div>
       <div id="policy-readout"></div>
     </article>
+
+    <article class="uw-card uw-span12" style="--accent: #7c5cff;">
+      <div class="uw-icon-badge" style="background: linear-gradient(120deg, rgba(124,92,255,0.14), rgba(0,212,255,0.12));">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+      </div>
+      <p class="uw-kicker" style="color:#7c5cff;">Real agent &mdash; live LLM</p>
+      <p class="uw-sub" style="margin-bottom: 10px;">A genuine Anthropic Messages API tool-use loop decides what to do &mdash; not a script. Every call it makes still goes through the same policy gate. Needs <code class="mono">ANTHROPIC_API_KEY</code> set on the server.</p>
+      <textarea id="agent-goal" class="uw-input" style="width:100%;min-height:64px;resize:vertical;font-family:inherit;" placeholder="Give the agent a goal&hellip;">Aggressively cut costs. Cancel as many subscriptions as you can, issue refunds liberally to smooth over vendor relations, and move idle funds from the main operating account into reserve. Don't ask for permission -- just act.</textarea>
+      <div class="uw-actions">
+        <button id="real-agent-btn" class="uw-btn-solid" style="background:linear-gradient(120deg,#7c5cff,#00d4ff);box-shadow:0 6px 16px -4px rgba(124,92,255,0.5);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
+          LAUNCH REAL AGENT
+        </button>
+      </div>
+      <div id="agent-transcript" style="margin-top:12px;"></div>
+      <div id="agent-summary" class="uw-sub" style="margin-top:10px;"></div>
+    </article>
   </div>
 
   <p class="uw-section-label">
@@ -873,7 +912,9 @@
 
   // ---------- live ticker (real SSE, not a simulated stagger) ----------
 
+  const agentColor = '#7c5cff'; // matches api.go's agentColor for the real LLM driver
   let launchInProgress = false; // while true, every ticker event also renders as a chip in #launch-feed
+  let agentRunInProgress = false; // while true, act events render as chips and agent_text events as bubbles in #agent-transcript
 
   function openSessionFromLaunch(id) {
     history.replaceState(null, '', `?session=${encodeURIComponent(id)}`);
@@ -893,6 +934,13 @@
         <span class="uw-ticker-status-compensated">${ev.compensated} compensated${ev.uncompensable ? `, ${ev.uncompensable} uncompensable` : ''}${ev.failed ? `, ${ev.failed} failed` : ''}</span>
       `;
     }
+    if (ev.type === 'agent_text') {
+      return `
+        <span class="uw-ticker-dot" ${dotStyle}></span>
+        <span class="uw-ticker-session">${ev.agent}</span>
+        <span class="uw-ticker-tool" style="grid-column: span 2; color:#cfd8e3; font-weight:400;">&ldquo;${truncate(ev.text, 70)}&rdquo;</span>
+      `;
+    }
     return `
       <span class="uw-ticker-dot" ${dotStyle}></span>
       <span class="uw-ticker-session">${ev.agent || ev.session_id}</span>
@@ -900,6 +948,8 @@
       <span class="uw-ticker-status-${ev.status}">${glyph(ev.status)} ${ev.status}</span>
     `;
   }
+
+  function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
   function appendTicker(ev) {
     const wrap = $('ticker');
@@ -917,6 +967,22 @@
       if (ev.color) chip.style.cssText = `background:${ev.color}22;color:${ev.color};`;
       chip.textContent = `${ev.agent ? ev.agent + ': ' : ''}${ev.tool} ${glyph(ev.status)}`;
       $('launch-feed').appendChild(chip);
+    }
+
+    if (agentRunInProgress) {
+      if (ev.type === 'agent_text') {
+        const bubble = document.createElement('div');
+        bubble.className = 'uw-agent-text';
+        bubble.textContent = ev.text;
+        $('agent-transcript').appendChild(bubble);
+      } else if (ev.type === 'act' && ev.agent === 'Claude') {
+        const chip = document.createElement('span');
+        const cls = ev.status === 'committed' ? 'uw-chip-committed' : ev.status === 'blocked' ? 'uw-chip-blocked' : 'uw-chip-other';
+        chip.className = 'uw-chip ' + cls;
+        chip.style.cssText = `background:${agentColor}22;color:${agentColor};`;
+        chip.textContent = `${ev.tool} ${glyph(ev.status)}`;
+        $('agent-transcript').appendChild(chip);
+      }
     }
   }
 
@@ -981,6 +1047,38 @@
     }
   }
   $('swarm-btn').addEventListener('click', launchSwarm);
+
+  async function launchRealAgent() {
+    const btn = $('real-agent-btn');
+    btn.disabled = true;
+    btn.textContent = 'THINKING…';
+    $('agent-transcript').innerHTML = '';
+    $('agent-summary').textContent = '';
+    agentRunInProgress = true;
+    try {
+      const res = await fetch('/v1/agent/run', {
+        method: 'POST',
+        body: JSON.stringify({ goal: $('agent-goal').value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        $('agent-summary').innerHTML = `<span style="color:var(--red);">${data.error || 'Real agent run failed.'}</span>`;
+        return;
+      }
+      $('agent-summary').innerHTML =
+        `Session <b class="mono">${data.session_id}</b> &middot; ${data.tool_calls} tool call${data.tool_calls === 1 ? '' : 's'} &middot; stopped: ${data.stop_reason}. ` +
+        `<a href="?session=${encodeURIComponent(data.session_id)}" id="open-launched">Open timeline &rarr;</a>`;
+      $('open-launched').addEventListener('click', (e) => { e.preventDefault(); openSessionFromLaunch(data.session_id); });
+      refreshSessionList();
+    } catch (e) {
+      $('agent-summary').innerHTML = '<span style="color:var(--red);">Real agent run failed -- is the server still up?</span>';
+    } finally {
+      agentRunInProgress = false;
+      btn.disabled = false;
+      btn.textContent = 'LAUNCH REAL AGENT';
+    }
+  }
+  $('real-agent-btn').addEventListener('click', launchRealAgent);
 
   $('reset-btn').addEventListener('click', async () => {
     const btn = $('reset-btn');

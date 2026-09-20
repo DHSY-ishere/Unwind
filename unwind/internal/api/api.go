@@ -12,12 +12,14 @@ import (
 	"log"
 	mrand "math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/DHSY-ishere/unwind/internal/demo"
 	"github.com/DHSY-ishere/unwind/internal/engine"
 	"github.com/DHSY-ishere/unwind/internal/ledger"
+	"github.com/DHSY-ishere/unwind/internal/llmagent"
 	"github.com/DHSY-ishere/unwind/internal/tools"
 )
 
@@ -45,6 +47,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/world/reset", s.postWorldReset)
 	mux.HandleFunc("POST /v1/demo/run", s.postDemoRun)
 	mux.HandleFunc("POST /v1/swarm/run", s.postSwarmRun)
+	mux.HandleFunc("POST /v1/agent/run", s.postAgentRun)
 	mux.HandleFunc("GET /v1/stream", s.getStream)
 
 	mux.HandleFunc("POST /v1/sessions/{id}/rollback", s.postRollback)
@@ -417,6 +420,104 @@ func (s *Server) postSwarmRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"session_id": sessionID,
 		"agents":     results,
+	})
+}
+
+const agentColor = "#7c5cff"
+
+type agentRunRequest struct {
+	Goal string `json:"goal"`
+}
+
+const defaultAgentGoal = "Aggressively cut costs. Cancel as many subscriptions as you can, " +
+	"issue refunds liberally to smooth over vendor relations, and move idle funds from the " +
+	"main operating account into reserve. Don't ask for permission -- just act."
+
+// postAgentRun is POST /v1/agent/run: the real thing SPEC.md always wanted --
+// a genuine Anthropic Messages API tool-use loop deciding what to do, with
+// every decision routed through the exact same Act() pipeline as the
+// scripted and swarm drivers. It is an additional front door, never a
+// replacement: it requires ANTHROPIC_API_KEY in the server's environment and
+// a live network call, so it cannot be the path a recording depends on
+// (DECISIONS.md K/O/T).
+func (s *Server) postAgentRun(w http.ResponseWriter, r *http.Request) {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "ANTHROPIC_API_KEY is not set in the server's environment -- restart 'unwind serve' with it exported to use the real agent",
+		})
+		return
+	}
+
+	var req agentRunRequest
+	_ = json.NewDecoder(r.Body).Decode(&req) // body is optional; a bad/empty body just falls through to the default goal
+	goal := req.Goal
+	if goal == "" {
+		goal = defaultAgentGoal
+	}
+
+	sessionID := randomSessionID("agent")
+	callNum := 0
+
+	exec := func(name string, input map[string]any) (string, bool) {
+		if name == "get_world_state" {
+			snap, err := tools.Snapshot(s.Ledger.DB)
+			if err != nil {
+				return fmt.Sprintf(`{"error": %q}`, err.Error()), true
+			}
+			b, _ := json.Marshal(snap)
+			return string(b), false
+		}
+
+		callNum++
+		idemKey := fmt.Sprintf("agent-%s-%02d", sessionID, callNum)
+		intent, err := s.Engine.Act(r.Context(), sessionID, name, input, idemKey)
+		if err != nil {
+			return fmt.Sprintf(`{"error": %q}`, err.Error()), true
+		}
+		s.publish(Event{
+			"type": "act", "session_id": sessionID, "tool": name, "status": intent.Status,
+			"seq": intent.Seq, "agent": "Claude", "color": agentColor,
+		})
+
+		resp := map[string]any{"status": intent.Status}
+		if intent.ResultJSON != "" {
+			var v any
+			if json.Unmarshal([]byte(intent.ResultJSON), &v) == nil {
+				if intent.Status == "blocked" || intent.Status == "failed" {
+					resp["reason"] = v
+				} else {
+					resp["result"] = v
+				}
+			}
+		}
+		b, _ := json.Marshal(resp)
+		isErr := intent.Status == "blocked" || intent.Status == "failed"
+		return string(b), isErr
+	}
+
+	onStep := func(step llmagent.Step) {
+		if step.Type == "text" {
+			s.publish(Event{"type": "agent_text", "session_id": sessionID, "agent": "Claude", "color": agentColor, "text": step.Text})
+		}
+	}
+
+	result, err := llmagent.RunAgent(r.Context(), apiKey, goal, exec, onStep)
+	if err != nil {
+		log.Printf("agent run error: %v", err)
+		writeJSON(w, http.StatusBadGateway, map[string]any{
+			"error":      err.Error(),
+			"session_id": sessionID,
+			"steps":      result.Steps, // whatever ran before the failure is still real ledger history
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session_id":  sessionID,
+		"tool_calls":  result.ToolCalls,
+		"stop_reason": result.StopReason,
+		"steps":       result.Steps,
 	})
 }
 
