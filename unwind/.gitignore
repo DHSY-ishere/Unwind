@@ -4,3 +4,4 @@ unwind
 *.db-shm
 *.db-wal
 serve.log
+.env

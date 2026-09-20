@@ -4,10 +4,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -73,7 +75,40 @@ func openEngine() (*ledger.Ledger, *engine.Engine, error) {
 	return led, eng, nil
 }
 
+// loadDotEnv reads simple KEY=VALUE lines from .env (if present) into the
+// process environment, without overwriting anything already set. It exists
+// so the real-agent driver just works on this machine without the operator
+// exporting anything first -- while keeping the key itself out of source
+// control (.env is gitignored; a key committed to a public repo is a key
+// that gets scraped).
+func loadDotEnv(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return // no .env is the normal case, not an error
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if key != "" && os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
+}
+
 func runServe(cmd *cobra.Command, args []string) error {
+	loadDotEnv(".env")
+
 	led, eng, err := openEngine()
 	if err != nil {
 		return err

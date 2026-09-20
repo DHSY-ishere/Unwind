@@ -44,6 +44,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/act", s.postAct)
 	mux.HandleFunc("GET /v1/sessions", s.getSessions)
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
+	mux.HandleFunc("GET /v1/stats", s.getStats)
 	mux.HandleFunc("GET /v1/world", s.getWorld)
 	mux.HandleFunc("POST /v1/world/reset", s.postWorldReset)
 	mux.HandleFunc("POST /v1/demo/run", s.postDemoRun)
@@ -263,6 +264,18 @@ func (s *Server) postRollback(w http.ResponseWriter, r *http.Request) {
 		"compensated": summary.Compensated, "uncompensable": summary.Uncompensable, "failed": summary.Failed,
 	})
 	writeJSON(w, http.StatusOK, summary)
+}
+
+// getStats is GET /v1/stats: the whole-deployment rollup the Control Room's
+// "blast radius" panel shows -- every session, not one.
+func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.Ledger.GlobalStats()
+	if err != nil {
+		log.Printf("global stats: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // getWorld is GET /v1/world: a read-only snapshot of the fake world state

@@ -345,6 +345,31 @@
   .uw-session-id { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
   .uw-session-meta { font-size: 12px; color: var(--ink-soft); }
 
+  /* ---------- blast radius + legend cards ---------- */
+
+  .uw-br-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; }
+  .uw-br-label { font-size: 11.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+  .uw-br-value { font-family: 'JetBrains Mono', monospace; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .uw-br-bar { margin-top: 8px; height: 6px; border-radius: 999px; background: var(--red-bg); overflow: hidden; }
+  .uw-br-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #35c48a, var(--green)); transition: width 0.6s ease; }
+  .uw-br-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .uw-br-grid div { display: flex; flex-direction: column; }
+  .uw-br-grid b { font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .uw-br-grid span { font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .uw-legend-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; }
+  .uw-legend-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; margin-top: 5px; }
+  .uw-legend-row div { display: flex; flex-direction: column; }
+  .uw-legend-row b { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+  .uw-legend-row span { font-size: 11.5px; color: var(--ink-soft); line-height: 1.45; }
+
   /* ---------- live ticker ---------- */
 
   .uw-ticker {
@@ -659,6 +684,26 @@
       <div id="launch-summary" class="uw-sub" style="margin-top:10px;"></div>
     </article>
 
+    <article class="uw-card uw-row2" style="justify-content: flex-start;">
+      <div class="uw-icon-badge" style="background: linear-gradient(120deg, rgba(223,27,65,0.12), rgba(245,166,35,0.14));">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" opacity="0.5"/><path d="M12 1v2M12 21v2M1 12h2M21 12h2"/></svg>
+      </div>
+      <p class="uw-kicker" style="color: var(--red);">Blast radius</p>
+      <p class="uw-cap" style="margin-bottom: 4px;">Every session on this server.</p>
+
+      <div class="uw-br-row"><span class="uw-br-label">moved</span><b class="uw-br-value" id="br-moved">&#8377;0</b></div>
+      <div class="uw-br-row"><span class="uw-br-label">reversed</span><b class="uw-br-value" id="br-reversed" style="color: var(--green);">&#8377;0</b></div>
+      <div class="uw-br-bar"><div class="uw-br-bar-fill" id="br-bar"></div></div>
+      <p class="uw-cap" id="br-standing" style="margin-top:2px;">nothing executed yet</p>
+
+      <div class="uw-br-grid">
+        <div><b id="br-sessions">0</b><span>sessions</span></div>
+        <div><b id="br-committed">0</b><span>committed</span></div>
+        <div><b id="br-blocked" style="color: var(--red);">0</b><span>blocked</span></div>
+        <div><b id="br-uncomp" style="color: var(--amber);">0</b><span>uncompensable</span></div>
+      </div>
+    </article>
+
     <article class="uw-card uw-span8">
       <div class="uw-icon-badge" style="background: linear-gradient(120deg, rgba(99,91,255,0.12), rgba(230,25,184,0.12));">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -681,12 +726,29 @@
       <div id="policy-readout"></div>
     </article>
 
+    <article class="uw-card" style="justify-content: flex-start;">
+      <p class="uw-kicker">Reversibility classes</p>
+      <p class="uw-cap" style="margin-bottom: 6px;">Compensation is declarative and per-tool. Nothing here is magic.</p>
+      <div class="uw-legend-row">
+        <span class="uw-legend-dot" style="background: var(--green);"></span>
+        <div><b>reversible</b><span>cancel_subscription &mdash; prior row captured, reinstated exactly</span></div>
+      </div>
+      <div class="uw-legend-row">
+        <span class="uw-legend-dot" style="background: var(--amber);"></span>
+        <div><b>partial</b><span>issue_refund &mdash; reversing entry posted, invoice flagged contested</span></div>
+      </div>
+      <div class="uw-legend-row">
+        <span class="uw-legend-dot" style="background: var(--red);"></span>
+        <div><b>irreversible</b><span>transfer_funds &mdash; no undo exists. Policy has to stop it <em>before</em> it runs</span></div>
+      </div>
+    </article>
+
     <article class="uw-card uw-span12" style="--accent: #7c5cff;">
       <div class="uw-icon-badge" style="background: linear-gradient(120deg, rgba(124,92,255,0.14), rgba(0,212,255,0.12));">
         <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
       </div>
       <p class="uw-kicker" style="color:#7c5cff;">Real agent &mdash; live LLM</p>
-      <p class="uw-sub" style="margin-bottom: 10px;">A genuine tool-use loop (Gemini or Claude) decides what to do &mdash; not a script. Every call it makes still goes through the same policy gate. Needs <code class="mono">GEMINI_API_KEY</code> or <code class="mono">ANTHROPIC_API_KEY</code> set on the server.</p>
+      <p class="uw-sub" style="margin-bottom: 10px;">A genuine tool-use loop (Gemini or Claude) decides what to do, not a script. It reads the real world state, picks its own targets, and every call it makes still goes through the same policy gate as everything else.</p>
       <textarea id="agent-goal" class="uw-input" style="width:100%;min-height:64px;resize:vertical;font-family:inherit;" placeholder="Give the agent a goal&hellip;">Aggressively cut costs. Cancel as many subscriptions as you can, issue refunds liberally to smooth over vendor relations, and move idle funds from the main operating account into reserve. Don't ask for permission -- just act.</textarea>
       <div class="uw-actions">
         <button id="real-agent-btn" class="uw-btn-solid" style="background:linear-gradient(120deg,#7c5cff,#00d4ff);box-shadow:0 6px 16px -4px rgba(124,92,255,0.5);">
@@ -1091,6 +1153,31 @@
     }
   });
 
+  // ---------- control room: blast radius rollup ----------
+
+  async function refreshStats() {
+    try {
+      const res = await fetch('/v1/stats');
+      if (!res.ok) return;
+      const st = await res.json();
+      animateStat($('br-moved'), 'br-moved', st.amount_moved_minor, v => rupees(v));
+      animateStat($('br-reversed'), 'br-reversed', st.amount_reversed_minor, v => rupees(v));
+      animateStat($('br-sessions'), 'br-sessions', st.sessions, v => String(v));
+      animateStat($('br-committed'), 'br-committed', st.committed, v => String(v));
+      animateStat($('br-blocked'), 'br-blocked', st.blocked, v => String(v));
+      animateStat($('br-uncomp'), 'br-uncomp', st.uncompensable, v => String(v));
+
+      const moved = st.amount_moved_minor || 0;
+      const reversed = st.amount_reversed_minor || 0;
+      const pct = moved > 0 ? Math.min(100, (reversed / moved) * 100) : 0;
+      $('br-bar').style.width = pct + '%';
+      const standing = moved - reversed;
+      $('br-standing').textContent = moved === 0
+        ? 'nothing executed yet'
+        : `${rupees(standing)} still standing · ${Math.round(pct)}% reversed`;
+    } catch (e) { /* best-effort */ }
+  }
+
   async function refreshSessionList() {
     try {
       const res = await fetch('/v1/sessions');
@@ -1343,6 +1430,8 @@
         renderWorld(await (await fetch('/v1/world')).json());
       } else if (currentView === 'session' && sessionID) {
         await loadSessionData();
+      } else if (currentView === 'control') {
+        await refreshStats();
       }
     } catch (e) { /* quiet -- next tick retries */ }
   }
@@ -1351,6 +1440,7 @@
   // ---------- boot ----------
 
   loadPolicy();
+  refreshStats();
   refreshSessionList();
   if (sessionID) {
     $('nav-session').disabled = false;

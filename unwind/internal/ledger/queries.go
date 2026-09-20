@@ -257,6 +257,48 @@ func (l *Ledger) SumReservedAmount(sessionID string) (int64, error) {
 	return n, err
 }
 
+// Stats is the whole-deployment rollup behind GET /v1/stats -- the "blast
+// radius so far" panel on the Control Room. Every number is across all
+// sessions, not one.
+type Stats struct {
+	Sessions            int   `json:"sessions"`
+	Intents             int   `json:"intents"`
+	Committed           int   `json:"committed"`
+	Blocked             int   `json:"blocked"`
+	Compensated         int   `json:"compensated"`
+	Uncompensable       int   `json:"uncompensable"`
+	AmountMovedMinor    int64 `json:"amount_moved_minor"`
+	AmountReversedMinor int64 `json:"amount_reversed_minor"`
+}
+
+// GlobalStats aggregates every session's intents in one pass.
+// "Moved" counts intents that actually executed (committed and everything
+// downstream of it); "reversed" counts only what rollback took back, so the
+// gap between the two is the damage that is still standing.
+func (l *Ledger) GlobalStats() (*Stats, error) {
+	var s Stats
+	err := l.DB.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&s.Sessions)
+	if err != nil {
+		return nil, err
+	}
+	err = l.DB.QueryRow(`
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(status = 'committed'), 0),
+			COALESCE(SUM(status = 'blocked'), 0),
+			COALESCE(SUM(status = 'compensated'), 0),
+			COALESCE(SUM(status = 'uncompensable'), 0),
+			COALESCE(SUM(CASE WHEN status IN ('committed','compensated','uncompensable','failed_compensation')
+			                  THEN amount_minor ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN status = 'compensated' THEN amount_minor ELSE 0 END), 0)
+		FROM intents`).Scan(&s.Intents, &s.Committed, &s.Blocked, &s.Compensated,
+		&s.Uncompensable, &s.AmountMovedMinor, &s.AmountReversedMinor)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func (l *Ledger) InsertApproval(intentID, decision string) error {
 	_, err := l.DB.Exec(`INSERT INTO approvals (id, intent_id, decision, decided_at) VALUES (?, ?, ?, ?)`,
 		newID("apr"), intentID, decision, now())
