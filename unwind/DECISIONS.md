@@ -313,6 +313,48 @@ headroom (17 calls total) and needed no change.
 
 ---
 
+### R. Live-editable caps, an in-process demo trigger, and a World read model
+
+**Context.** Post-ship, the user asked for a bigger walkthrough surface: a
+Control Room to launch the scenario from the browser, a World screen showing
+the fake world's real state, and an interactive Policy console. None of this
+changes the pipeline; it's additive read/trigger endpoints plus one runtime
+mutability seam.
+
+**Rulings.**
+
+- **Caps become live-mutable.** `Engine.Policy.Caps` is now guarded by a
+  `sync.RWMutex` (`CapsSnapshot()` / `UpdateCaps()`), edited via
+  `POST /v1/policy`. This is a **runtime-only override for the current
+  process** -- it never writes to `policy.yaml`, never touches `Mode` or
+  `Rules`, and resets to the file's values on restart. `GET /v1/policy` now
+  serves `Engine.PolicySnapshot()` (mode/rules from the file, caps live)
+  instead of the raw loaded struct.
+- **`rogue` vs `guarded` collapses into one trigger.** `POST /v1/demo/run`
+  fires the identical 17-call sequence in-process (moved to a new leaf
+  package, `internal/demo`, shared with the CLI driver so there's exactly one
+  copy of the sequence) against whatever caps are live at that moment.
+  Whether a given run looks "rogue" or "guarded" is now a property of the
+  caps you dialed in beforehand, not a separate code path. The CLI's
+  `--scenario=rogue|guarded` flag and `policy.guarded.yaml` are unchanged and
+  still used by `scripts/verify.sh` -- this is an additional front door, not
+  a replacement.
+- **The world gets a read model.** `GET /v1/world` (via `tools.Snapshot`) is a
+  plain, never-ledgered read of accounts/vendor-subscriptions/invoices --
+  exactly the same status as the cut `list_vendors` (ruling L), just serving
+  the dashboard instead of an agent.
+- **The world needed a reset button.** Found while testing the Control Room
+  live: the world is shared across every session, so launching the scenario
+  twice in a row makes the second run's `cancel_subscription` calls
+  legitimately fail (nothing active left to cancel) -- not "block," which
+  looks like a bug when you're mid-demo trying to show the policy gate.
+  `POST /v1/world/reset` (`tools.ResetWorld`) wipes and reseeds the world
+  (same deterministic ids every time -- `seed.sql`'s RNG has a fixed seed) so
+  the demo is repeatable without restarting the server. It never touches the
+  ledger -- past sessions keep their history against a freshly reset world.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

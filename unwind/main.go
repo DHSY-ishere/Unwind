@@ -80,7 +80,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	defer led.Close()
 
-	srv := &api.Server{Ledger: led, Engine: eng, Policy: eng.Policy}
+	srv := &api.Server{Ledger: led, Engine: eng}
 
 	log.SetFlags(log.Ltime)
 	log.Printf("ledger   %s", dbPath)

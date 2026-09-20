@@ -45,13 +45,14 @@ type Rule struct {
 // cap it already tripped). Amount caps and approval rules are not built --
 // DECISIONS.md O.
 func (e *Engine) checkCaps(sessionID, tool string) (ruleName string, blocked bool) {
-	if capN, ok := e.Policy.Caps.PerTool[tool]; ok {
+	caps := e.CapsSnapshot()
+	if capN, ok := caps.PerTool[tool]; ok {
 		count, err := e.Ledger.CountCommittedByTool(sessionID, tool)
 		if err == nil && count >= capN {
 			return fmt.Sprintf("per_tool.%s (max %d)", tool, capN), true
 		}
 	}
-	if maxMut := e.Policy.Caps.MaxMutationsPerSession; maxMut > 0 {
+	if maxMut := caps.MaxMutationsPerSession; maxMut > 0 {
 		count, err := e.Ledger.CountCommitted(sessionID)
 		if err == nil && count >= maxMut {
 			return fmt.Sprintf("max_mutations_per_session (max %d)", maxMut), true

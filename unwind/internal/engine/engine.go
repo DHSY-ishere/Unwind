@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/DHSY-ishere/unwind/internal/ledger"
 	"github.com/DHSY-ishere/unwind/internal/tools"
@@ -25,10 +26,60 @@ type Engine struct {
 	Ledger *ledger.Ledger
 	Tools  *tools.Registry
 	Policy *Policy
+
+	// capsMu guards Policy.Caps specifically. Mode and Rules are set once at
+	// load and never mutated at runtime; Caps is -- the Control Room's policy
+	// console (POST /v1/policy) edits it live so a viewer can drag a cap down
+	// and rerun the scenario without restarting the server. Every read of
+	// Caps in the act pipeline goes through capsSnapshot() rather than
+	// touching e.Policy.Caps directly, so a concurrent edit is never a data
+	// race, just a value that's current as of the moment it's read.
+	capsMu sync.RWMutex
 }
 
 func New(l *ledger.Ledger, r *tools.Registry, p *Policy) *Engine {
 	return &Engine{Ledger: l, Tools: r, Policy: p}
+}
+
+// CapsSnapshot returns a copy of the live caps -- safe to read concurrently
+// with UpdateCaps.
+func (e *Engine) CapsSnapshot() Caps {
+	e.capsMu.RLock()
+	defer e.capsMu.RUnlock()
+	perTool := make(map[string]int, len(e.Policy.Caps.PerTool))
+	for k, v := range e.Policy.Caps.PerTool {
+		perTool[k] = v
+	}
+	return Caps{
+		MaxMutationsPerSession: e.Policy.Caps.MaxMutationsPerSession,
+		MaxTotalAmountMinor:    e.Policy.Caps.MaxTotalAmountMinor,
+		PerTool:                perTool,
+	}
+}
+
+// UpdateCaps replaces the live mutation caps -- the Policy console's write
+// path. It never touches Mode or Rules, and it never touches policy.yaml on
+// disk: this is a runtime override for the running process only, gone on
+// restart (DECISIONS.md R).
+func (e *Engine) UpdateCaps(maxMutations int, perTool map[string]int) {
+	e.capsMu.Lock()
+	defer e.capsMu.Unlock()
+	e.Policy.Caps.MaxMutationsPerSession = maxMutations
+	cp := make(map[string]int, len(perTool))
+	for k, v := range perTool {
+		cp[k] = v
+	}
+	e.Policy.Caps.PerTool = cp
+}
+
+// PolicySnapshot returns a copy of the full policy (live caps, static mode
+// and rules) -- what GET /v1/policy actually serves.
+func (e *Engine) PolicySnapshot() Policy {
+	return Policy{
+		Mode:  e.Policy.Mode,
+		Caps:  e.CapsSnapshot(),
+		Rules: e.Policy.Rules,
+	}
 }
 
 func toJSON(v any) (string, error) {

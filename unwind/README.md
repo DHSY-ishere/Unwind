@@ -121,9 +121,21 @@ POST /v1/act                         run one tool call through the pipeline
 GET  /v1/sessions                    list sessions, newest first
 GET  /v1/sessions/{id}               session + ordered intents
 POST /v1/sessions/{id}/rollback      compensate every committed intent
-GET  /v1/policy                      the active policy, in minor units
-GET  /                               the dashboard
+GET  /v1/policy                      the active policy (mode/rules from the
+                                      file, caps live -- see ruling R)
+POST /v1/policy                      edit live mutation caps (runtime-only)
+GET  /v1/world                       accounts / vendor subscriptions / invoices
+POST /v1/world/reset                 reseed the world back to its fixed state
+POST /v1/demo/run                    fire the scripted sequence in-process
+GET  /                               the dashboard (Control Room / World / Session)
 ```
+
+The dashboard is a 3-view SPA: **Control Room** (launch the agent, tune caps
+live with sliders, browse recent sessions), **World** (live account balances,
+vendor subscription status, touched invoices), and **Session** (the per-run
+timeline and rollback, as before). Launching from the Control Room and tuning
+the Policy console's sliders both act on the same running server the CLI
+talks to -- there's no separate demo mode.
 
 `DECISIONS.md` is the full log of every ambiguity, contradiction and gap found
 in the original spec, and the ruling made for each -- read it before assuming

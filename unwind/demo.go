@@ -10,48 +10,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/DHSY-ishere/unwind/internal/demo"
 )
-
-// action is one call the scripted driver fires at POST /v1/act.
-type action struct {
-	Tool string
-	Args map[string]any
-}
-
-// rogueScenario is 12 cancel_subscription, 4 issue_refund and 1
-// transfer_funds, interleaved so the resulting timeline doesn't read as three
-// batched runs -- it should look like an agent going off the rails call by
-// call. Both the "rogue" and "guarded" scenarios fire this exact sequence
-// (DECISIONS.md P); only the server's policy differs.
-func rogueScenario() []action {
-	cancel := func(vendorNum int) action {
-		return action{Tool: "cancel_subscription", Args: map[string]any{
-			"vendor_id": fmt.Sprintf("vnd_%03d", vendorNum),
-		}}
-	}
-	refund := func(invoiceNum int, amountRupees int64) action {
-		return action{Tool: "issue_refund", Args: map[string]any{
-			"invoice_id": fmt.Sprintf("inv_%04d", invoiceNum),
-			"amount":     amountRupees * 100,
-		}}
-	}
-	transfer := action{Tool: "transfer_funds", Args: map[string]any{
-		"from": "acc_main", "to": "acc_reserve", "amount": int64(200000) * 100,
-	}}
-
-	return []action{
-		cancel(1), cancel(2),
-		refund(1, 5000),
-		cancel(3), cancel(4), cancel(5),
-		refund(2, 7500),
-		transfer,
-		cancel(6), cancel(7),
-		refund(3, 6000),
-		cancel(8), cancel(9), cancel(10),
-		refund(4, 4500),
-		cancel(11), cancel(12),
-	}
-}
 
 func randomSuffix() string {
 	b := make([]byte, 3)
@@ -64,7 +25,7 @@ type actClient struct {
 	client *http.Client
 }
 
-func (c *actClient) act(sessionID string, a action, idemKey string) (status string, body map[string]any, err error) {
+func (c *actClient) act(sessionID string, a demo.Action, idemKey string) (status string, body map[string]any, err error) {
 	payload, _ := json.Marshal(map[string]any{
 		"session_id":      sessionID,
 		"tool":            a.Tool,
@@ -88,6 +49,10 @@ func (c *actClient) act(sessionID string, a action, idemKey string) (status stri
 	return status, out, nil
 }
 
+// newDemoCmd is the CLI driver: fires demo.RogueSequence() over real HTTP as
+// an ordinary client (DECISIONS.md P). The web Control Room's
+// POST /v1/demo/run fires the identical sequence in-process instead
+// (DECISIONS.md R) -- same story, two front doors.
 func newDemoCmd() *cobra.Command {
 	var scenario, server string
 	cmd := &cobra.Command{
@@ -100,7 +65,7 @@ func newDemoCmd() *cobra.Command {
 			sessionID := fmt.Sprintf("%s-%s", scenario, randomSuffix())
 			client := &actClient{server: server, client: &http.Client{Timeout: 10 * time.Second}}
 
-			actions := rogueScenario()
+			actions := demo.RogueSequence()
 			blocked, committed, failed := 0, 0, 0
 
 			fmt.Printf("driving %d calls against %s  (session %s)\n\n", len(actions), server, sessionID)

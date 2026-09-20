@@ -57,6 +57,117 @@ CREATE TABLE IF NOT EXISTS journal_entries (
 );
 `
 
+// Account, VendorStatus and Invoice are the read model for GET /v1/world --
+// enough of the fake world's real state for the dashboard's World screen to
+// make "committed" and "compensated" visible as an actual balance moving,
+// not just a status word.
+type Account struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	BalanceMinor int64  `json:"balance_minor"`
+}
+
+type VendorStatus struct {
+	VendorID       string `json:"vendor_id"`
+	Name           string `json:"name"`
+	Category       string `json:"category"`
+	SubscriptionID string `json:"subscription_id,omitempty"`
+	Plan           string `json:"plan,omitempty"`
+	AmountMinor    int64  `json:"amount_minor,omitempty"`
+	Status         string `json:"status"` // active | cancelled | none (no subscription)
+}
+
+type Invoice struct {
+	ID                  string `json:"id"`
+	VendorID            string `json:"vendor_id"`
+	AmountMinor         int64  `json:"amount_minor"`
+	Status              string `json:"status"`
+	RefundedAmountMinor int64  `json:"refunded_amount_minor"`
+}
+
+// WorldSnapshot is the full response body for GET /v1/world.
+type WorldSnapshot struct {
+	Accounts       []Account      `json:"accounts"`
+	Vendors        []VendorStatus `json:"vendors"`
+	Invoices       []Invoice      `json:"invoices"`        // only invoices touched by a refund -- open/paid ones are summarized, not listed
+	InvoiceSummary map[string]int `json:"invoice_summary"` // status -> count, across all 120
+}
+
+// Snapshot reads the current world state for the dashboard. It's a plain
+// read -- never ledgered, never routed through Act -- exactly like the
+// list_vendors tool this build cut (DECISIONS.md L); the difference is this
+// one exists to make the World screen possible, not as a fourth tool.
+func Snapshot(db *sql.DB) (*WorldSnapshot, error) {
+	snap := &WorldSnapshot{InvoiceSummary: map[string]int{}}
+
+	rows, err := db.Query(`SELECT id, name, balance_minor FROM accounts ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("query accounts: %w", err)
+	}
+	for rows.Next() {
+		var a Account
+		if err := rows.Scan(&a.ID, &a.Name, &a.BalanceMinor); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		snap.Accounts = append(snap.Accounts, a)
+	}
+	rows.Close()
+
+	rows, err = db.Query(`
+		SELECT v.id, v.name, v.category,
+		       COALESCE(s.id, ''), COALESCE(s.plan, ''), COALESCE(s.amount_minor, 0),
+		       CASE WHEN s.id IS NULL THEN 'none' ELSE s.status END
+		FROM vendors v
+		LEFT JOIN subscriptions s ON s.vendor_id = v.id
+		ORDER BY v.id`)
+	if err != nil {
+		return nil, fmt.Errorf("query vendors: %w", err)
+	}
+	for rows.Next() {
+		var v VendorStatus
+		if err := rows.Scan(&v.VendorID, &v.Name, &v.Category, &v.SubscriptionID, &v.Plan, &v.AmountMinor, &v.Status); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		snap.Vendors = append(snap.Vendors, v)
+	}
+	rows.Close()
+
+	rows, err = db.Query(`SELECT status, COUNT(*) FROM invoices GROUP BY status`)
+	if err != nil {
+		return nil, fmt.Errorf("query invoice summary: %w", err)
+	}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		snap.InvoiceSummary[status] = count
+	}
+	rows.Close()
+
+	rows, err = db.Query(`
+		SELECT id, vendor_id, amount_minor, status, refunded_amount_minor
+		FROM invoices WHERE status IN ('refunded', 'contested') ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("query touched invoices: %w", err)
+	}
+	for rows.Next() {
+		var inv Invoice
+		if err := rows.Scan(&inv.ID, &inv.VendorID, &inv.AmountMinor, &inv.Status, &inv.RefundedAmountMinor); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		snap.Invoices = append(snap.Invoices, inv)
+	}
+	rows.Close()
+
+	return snap, rows.Err()
+}
+
 // EnsureWorld applies the world schema and seeds it exactly once (guarded by
 // the vendors table being empty). Safe to call on every boot.
 func EnsureWorld(db *sql.DB) error {
@@ -74,4 +185,32 @@ func EnsureWorld(db *sql.DB) error {
 		return fmt.Errorf("seed world: %w", err)
 	}
 	return nil
+}
+
+// ResetWorld wipes the fake world back to its deterministic seed (same
+// vendor/invoice/account ids every time -- seed.sql has a fixed RNG seed).
+// It exists because the world is shared across every session: run the demo
+// scenario twice in a row without this and the second run's
+// cancel_subscription calls legitimately fail (nothing active left to
+// cancel), not "block" -- which looks like a bug on camera when you're trying
+// to demo the policy gate, not real exhaustion of fake data. It never touches
+// the ledger (sessions/intents/approvals) -- past runs keep their history,
+// they just now refer to a freshly-reset world.
+func ResetWorld(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("reset world: begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Children before parents, so SQLite's foreign-key checks don't trip.
+	for _, table := range []string{"journal_entries", "invoices", "subscriptions", "vendors", "accounts"} {
+		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
+			return fmt.Errorf("reset world: clear %s: %w", table, err)
+		}
+	}
+	if _, err := tx.Exec(seedSQL); err != nil {
+		return fmt.Errorf("reset world: reseed: %w", err)
+	}
+	return tx.Commit()
 }
