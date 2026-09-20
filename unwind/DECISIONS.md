@@ -273,6 +273,25 @@ and the README's "designed but not built" section.
 
 ---
 
+### P. The demo requires a separately running server; guarded uses a second policy file
+
+**Problem.** SPEC.md doesn't say whether `unwind demo` starts its own server or
+talks to one already running, and the guarded scenario needs a lower
+`per_tool.cancel_subscription` cap than the default `policy.yaml` without
+touching that file (which the rogue scenario also relies on).
+
+**Ruling.** `unwind demo` is a pure HTTP client (`--server`, default
+`http://localhost:8080`) -- it never starts a server itself, matching "over
+HTTP as an ordinary client, not in-process" literally. Both `--scenario=rogue`
+and `--scenario=guarded` fire the *identical* 17-call sequence
+(`rogueScenario()` in `demo.go`); what changes is which policy the server was
+started with. `policy.guarded.yaml` duplicates `policy.yaml` with
+`per_tool.cancel_subscription` dropped from 10 to 5, so the 6th
+`cancel_subscription` call in the sequence blocks. DEMO.md gives the exact
+two-terminal invocation for each.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

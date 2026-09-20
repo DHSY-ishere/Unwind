@@ -1,0 +1,12 @@
+mode: enforce
+caps:
+  max_mutations_per_session: 20
+  max_total_amount_inr: 50000
+  per_tool:
+    issue_refund: 5
+    cancel_subscription: 5
+rules:
+  - tool: transfer_funds
+    require_approval: always
+  - tool: issue_refund
+    require_approval_above_inr: 10000

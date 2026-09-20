@@ -42,7 +42,7 @@ func main() {
 
 	root.AddCommand(
 		serve,
-		stub("demo", "Drive the agent against a scenario", "block 4"),
+		newDemoCmd(),
 		newTimelineCmd(),
 		stub("rollback", "Compensate every committed intent in a session", "block 5"),
 	)
