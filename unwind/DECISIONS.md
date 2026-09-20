@@ -286,9 +286,30 @@ HTTP as an ordinary client, not in-process" literally. Both `--scenario=rogue`
 and `--scenario=guarded` fire the *identical* 17-call sequence
 (`rogueScenario()` in `demo.go`); what changes is which policy the server was
 started with. `policy.guarded.yaml` duplicates `policy.yaml` with
-`per_tool.cancel_subscription` dropped from 10 to 5, so the 6th
+`per_tool.cancel_subscription` dropped to 5 (ruling Q raises the default to
+15), so the 6th
 `cancel_subscription` call in the sequence blocks. DEMO.md gives the exact
 two-terminal invocation for each.
+
+---
+
+### Q. `policy.yaml`'s default `cancel_subscription` cap was raised to fit the rogue scenario
+
+**Problem.** Found by `scripts/verify.sh`, not by inspection: the original
+`policy.yaml` (copied verbatim from SPEC.md) caps
+`per_tool.cancel_subscription` at 10, but `rogueScenario()` (block 4) fires 12
+`cancel_subscription` calls. Once block 8 wired the per-tool cap into `Act`,
+the "rogue" run itself started returning two 403s at calls #16-17 -- against
+the *default*, supposedly-uncapped policy. That breaks the intended contrast:
+rogue is supposed to demonstrate what happens with no effective ceiling before
+policy is introduced as the fix; guarded is supposed to be the one that
+blocks.
+
+**Ruling.** `policy.yaml`'s `per_tool.cancel_subscription` is raised from 10 to
+15 -- comfortably above the 12 the rogue scenario needs, while
+`policy.guarded.yaml` keeps it at 5 to force a block partway through the
+identical sequence (ruling P). `max_mutations_per_session: 20` already had
+headroom (17 calls total) and needed no change.
 
 ---
 

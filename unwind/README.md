@@ -104,7 +104,7 @@ To see the policy gate block something instead of rolling it back:
 ./unwind demo --scenario=guarded --server http://localhost:8081
 ```
 
-`policy.guarded.yaml` lowers `per_tool.cancel_subscription` from 10 to 5, so
+`policy.guarded.yaml` lowers `per_tool.cancel_subscription` from 15 to 5, so
 the identical 17-call sequence starts returning `403 blocked` partway through
 -- and the driver keeps going, because a blocked call isn't a crash.
 
