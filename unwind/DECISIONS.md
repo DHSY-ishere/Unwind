@@ -540,13 +540,34 @@ Specifics:
   or any S3-compatible endpoint, so it is developable and demoable at zero
   cost with no AWS account.
 
-**Verified without an AWS account.** `internal/awsaudit/s3_test.go` runs the
-real SDK against an `httptest` stand-in and asserts the request is
+**Verified without an AWS account** first: `internal/awsaudit/s3_test.go` runs
+the real SDK against an `httptest` stand-in and asserts the request is
 SigV4-signed, path-style addressed, keyed correctly, and that the uploaded
-body round-trips as a complete audit record. End-to-end, a full rogue run was
-archived through the running server: 17 intents, 17,242 bytes, the
-irreversible transfer preserved as `uncompensable`, and each compensated
-intent's captured prior state intact.
+body round-trips as a complete audit record.
+
+**Then verified against a real AWS account** (hackathon credits, IAM user
+scoped to `AmazonBedrockFullAccess` + `AmazonS3FullAccess`, never root -- see
+the security note in this same session's chat history for why root access was
+declined). Bucket `unwind-audit-<account-id>` created with `ObjectLockEnabledForBucket`
+and a default retention rule (GOVERNANCE, 30 days -- not COMPLIANCE, which not
+even root can override; GOVERNANCE was the deliberate choice *while still
+actively building and testing this feature*, since a mistake during
+development shouldn't be permanently unrecoverable). A full rogue run
+archived through the running server for real: 17 intents, real S3 version
+ID, real ETag.
+
+The interesting part was proving the lock actually holds. A plain
+`DeleteObject` against the key "succeeded" -- but that's expected S3 behavior
+with versioning on: it just adds a delete marker, leaving the underlying
+version untouched. The real test is deleting that **specific locked
+version**, which returned `403 AccessDenied: Access Denied because object
+protected by object lock` -- from an IAM user whose attached policy
+(`AmazonS3FullAccess`) technically grants `s3:BypassGovernanceRetention`.
+GOVERNANCE mode still refuses the delete unless the caller *explicitly* passes
+`x-amz-bypass-governance-retention: true` on that specific request; simply
+having the permission isn't enough. That is the actual shape of the
+guarantee: not "nobody can delete this," but "deleting this can never happen
+by accident, only by a deliberate, auditable override."
 
 ---
 
