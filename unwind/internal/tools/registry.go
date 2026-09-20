@@ -53,6 +53,13 @@ func NewRegistry(db *sql.DB) *Registry {
 	return r
 }
 
+// NewEmptyRegistry and Register exist for tests: engine_test.go registers
+// fake tools to control Compensate's outcome deterministically, without
+// standing up the real seeded world.
+func NewEmptyRegistry() *Registry { return &Registry{tools: map[string]Tool{}} }
+
+func (r *Registry) Register(t Tool) { r.tools[t.Name()] = t }
+
 func (r *Registry) Get(name string) (Tool, bool) {
 	t, ok := r.tools[name]
 	return t, ok
