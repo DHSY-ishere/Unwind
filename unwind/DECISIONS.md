@@ -443,6 +443,51 @@ for a recording.
 
 ---
 
+### U. A Gemini driver, verified live -- and what that changed
+
+**Context.** The user had a Gemini API key on hand, not an Anthropic one.
+Rather than block on a key they didn't have, `internal/llmagent/gemini.go`
+adds a second real driver behind the identical `Step`/`RunResult`/`ExecTool`
+contract as the Anthropic one, using Gemini's own REST shape (`contents` with
+`role`/`parts`, `functionCall`/`functionResponse` parts, and an
+OpenAPI-flavored schema with **uppercase** type names -- `"OBJECT"`,
+`"STRING"`, `"INTEGER"` -- confirmed against the live `generateContent`
+endpoint before writing any Go, not assumed from memory). `POST
+/v1/agent/run` now picks whichever of `GEMINI_API_KEY` /
+`ANTHROPIC_API_KEY` is set (Gemini first), via `selectAgentProvider` --
+same pipeline, same ticker, just a different upstream model and a different
+color tag.
+
+**This is the one part of the project actually exercised against a live LLM
+in this session**, and it is now verified working end-to-end, not just
+plausible: a real Gemini 2.5 Flash model called `get_world_state`,
+correctly refused to invent an invoice id when it didn't have one, called
+`cancel_subscription` twice and `issue_refund` once with real ids from the
+world snapshot, all three landed in the ledger as `committed` through the
+normal policy-gated `Act()` pipeline, and `unwind rollback` compensated all
+three cleanly. Ruling T's "not verified live" caveat is superseded for the
+Gemini path; it still stands for the Anthropic path, which has no key to
+test against in this environment.
+
+**A real gap this test caught and fixed:** `get_world_state` originally
+reused the World screen's `tools.Snapshot`, whose `Invoices` field
+deliberately lists only *touched* (refunded/contested) invoices -- correct
+for a human glancing at what changed, useless to an agent that needs a
+real, untouched invoice id to act on in the first place. On a fresh
+database this left the agent with no legal invoice id to refund against,
+and it correctly said so rather than inventing one. Fixed by adding
+`SampleOpenInvoices` (up to 15 open/paid invoices, real ids) to
+`WorldSnapshot` -- additive, so the World screen is unaffected.
+
+**Handling of the key itself:** the key was shared in plain chat text.
+It was never written into any file that gets committed -- only passed as
+an environment variable (`GEMINI_API_KEY=... unwind serve`) for local
+testing. It is, however, now sitting in this conversation's history, so
+rotating it in Google AI Studio once testing is done is worth doing as
+routine hygiene, independent of anything in this codebase.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

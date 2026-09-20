@@ -154,9 +154,43 @@ redesign), but with no working code path in this build:
   caps (`max_mutations_per_session`, `per_tool`) are wired into `Act`.
 - **`dryrun` policy mode.** Parsed and stored per session, but `Act` doesn't
   branch on it -- every call executes for real regardless of mode.
-- **The Anthropic tool-use loop driver.** Only the scripted driver exists.
-  `unwind demo` talks to a running server over plain HTTP with a fixed call
-  sequence; there is no `--driver=anthropic` flag.
 
-See `DECISIONS.md` ruling **O** for the reasoning, and `RUN_REPORT.md` for
-what was actually run and verified in this session.
+The Anthropic and Gemini tool-use loops described below *are* built --
+`POST /v1/agent/run` and the Control Room's "LAUNCH REAL AGENT" card -- as an
+additional front door alongside the scripted and swarm drivers, not a
+replacement for either.
+
+See `DECISIONS.md` rulings **O**, **T** and **U** for the reasoning, and
+`RUN_REPORT.md` for what was actually run and verified in the original
+session.
+
+## The real agent
+
+`POST /v1/agent/run` runs a genuine tool-use loop -- Gemini or Claude decides
+what to do, not a script -- with every decision routed through the exact same
+`Act()` pipeline, policy gate, and ledger as the scripted and swarm drivers.
+Set one of these before starting the server (it's read once at boot, so
+export it first):
+
+```sh
+export GEMINI_API_KEY=...      # tried first
+# or
+export ANTHROPIC_API_KEY=...   # used if Gemini's key isn't set
+./unwind serve
+```
+
+Then hit **LAUNCH REAL AGENT** on the Control Room, or:
+
+```sh
+curl -X POST http://localhost:8080/v1/agent/run \
+  -d '{"goal": "Cancel two subscriptions and issue one refund. Be brief."}'
+```
+
+The model gets the three real tools (exact same arg shapes the scripted
+driver uses) plus one extra, `get_world_state` -- a read-only tool that
+exists only for this driver, never ledgered, never part of the tool
+registry -- so it can see real vendor/invoice/account ids before acting
+instead of inventing them. Every call it makes shows up on the live ticker
+tagged with the model's name, and the resulting session rolls back exactly
+like any other. Verified end-to-end against Gemini 2.5 Flash: see
+`DECISIONS.md` ruling **U**.

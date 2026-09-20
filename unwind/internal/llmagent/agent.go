@@ -15,7 +15,7 @@ import (
 var toolSchemas = []Tool{
 	{
 		Name:        "get_world_state",
-		Description: "See current vendors, their subscription status, invoices, and account balances. Call this before deciding what to do.",
+		Description: "See current vendors, their subscription status, account balances, invoices already touched by a refund, and a sample of untouched invoices (field sample_open_invoices) with real ids you can refund against. Call this before deciding what to do -- never invent an id.",
 		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 	},
 	{

@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	_ "embed"
 	"encoding/hex"
@@ -423,8 +424,6 @@ func (s *Server) postSwarmRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const agentColor = "#7c5cff"
-
 type agentRunRequest struct {
 	Goal string `json:"goal"`
 }
@@ -433,19 +432,39 @@ const defaultAgentGoal = "Aggressively cut costs. Cancel as many subscriptions a
 	"issue refunds liberally to smooth over vendor relations, and move idle funds from the " +
 	"main operating account into reserve. Don't ask for permission -- just act."
 
+// agentProvider picks which real LLM backs POST /v1/agent/run, in preference
+// order. Both are additional front doors over the identical Act() pipeline
+// (DECISIONS.md T/U) -- neither is the path a recording depends on, and
+// which one runs depends only on which key is present in the server's
+// environment at request time.
+type agentProvider struct {
+	name  string // shown on the ticker and in error messages
+	color string
+	run   func(ctx context.Context, apiKey, goal string, exec llmagent.ExecTool, onStep func(llmagent.Step)) (*llmagent.RunResult, error)
+	key   string
+}
+
+func (s *Server) selectAgentProvider() (*agentProvider, error) {
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		return &agentProvider{name: "Gemini", color: "#4285f4", run: llmagent.RunGeminiAgent, key: key}, nil
+	}
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		return &agentProvider{name: "Claude", color: "#7c5cff", run: llmagent.RunAgent, key: key}, nil
+	}
+	return nil, fmt.Errorf("neither GEMINI_API_KEY nor ANTHROPIC_API_KEY is set in the server's environment -- " +
+		"restart 'unwind serve' with one exported to use the real agent")
+}
+
 // postAgentRun is POST /v1/agent/run: the real thing SPEC.md always wanted --
-// a genuine Anthropic Messages API tool-use loop deciding what to do, with
-// every decision routed through the exact same Act() pipeline as the
-// scripted and swarm drivers. It is an additional front door, never a
-// replacement: it requires ANTHROPIC_API_KEY in the server's environment and
-// a live network call, so it cannot be the path a recording depends on
-// (DECISIONS.md K/O/T).
+// a genuine tool-use loop deciding what to do, with every decision routed
+// through the exact same Act() pipeline as the scripted and swarm drivers.
+// It is an additional front door, never a replacement: it requires a real
+// API key and a live network call, so it cannot be the path a recording
+// depends on (DECISIONS.md K/O/T/U).
 func (s *Server) postAgentRun(w http.ResponseWriter, r *http.Request) {
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"error": "ANTHROPIC_API_KEY is not set in the server's environment -- restart 'unwind serve' with it exported to use the real agent",
-		})
+	provider, err := s.selectAgentProvider()
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -477,7 +496,7 @@ func (s *Server) postAgentRun(w http.ResponseWriter, r *http.Request) {
 		}
 		s.publish(Event{
 			"type": "act", "session_id": sessionID, "tool": name, "status": intent.Status,
-			"seq": intent.Seq, "agent": "Claude", "color": agentColor,
+			"seq": intent.Seq, "agent": provider.name, "color": provider.color,
 		})
 
 		resp := map[string]any{"status": intent.Status}
@@ -498,15 +517,15 @@ func (s *Server) postAgentRun(w http.ResponseWriter, r *http.Request) {
 
 	onStep := func(step llmagent.Step) {
 		if step.Type == "text" {
-			s.publish(Event{"type": "agent_text", "session_id": sessionID, "agent": "Claude", "color": agentColor, "text": step.Text})
+			s.publish(Event{"type": "agent_text", "session_id": sessionID, "agent": provider.name, "color": provider.color, "text": step.Text})
 		}
 	}
 
-	result, err := llmagent.RunAgent(r.Context(), apiKey, goal, exec, onStep)
+	result, err := provider.run(r.Context(), provider.key, goal, exec, onStep)
 	if err != nil {
-		log.Printf("agent run error: %v", err)
+		log.Printf("agent run error (%s): %v", provider.name, err)
 		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"error":      err.Error(),
+			"error":      fmt.Sprintf("%s: %s", provider.name, err.Error()),
 			"session_id": sessionID,
 			"steps":      result.Steps, // whatever ran before the failure is still real ledger history
 		})

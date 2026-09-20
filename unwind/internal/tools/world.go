@@ -89,8 +89,14 @@ type Invoice struct {
 type WorldSnapshot struct {
 	Accounts       []Account      `json:"accounts"`
 	Vendors        []VendorStatus `json:"vendors"`
-	Invoices       []Invoice      `json:"invoices"`        // only invoices touched by a refund -- open/paid ones are summarized, not listed
+	Invoices       []Invoice      `json:"invoices"`        // only invoices touched by a refund -- the World screen's "what changed" view
 	InvoiceSummary map[string]int `json:"invoice_summary"` // status -> count, across all 120
+	// SampleOpenInvoices is a capped sample of untouched (open/paid)
+	// invoices with real ids -- without it, a caller (the real LLM agent,
+	// in particular) has no way to discover a valid invoice_id to refund
+	// against on a fresh world, since Invoices above only lists ones
+	// already refunded/contested. Not used by the World screen.
+	SampleOpenInvoices []Invoice `json:"sample_open_invoices"`
 }
 
 // Snapshot reads the current world state for the dashboard. It's a plain
@@ -162,6 +168,22 @@ func Snapshot(db *sql.DB) (*WorldSnapshot, error) {
 			return nil, err
 		}
 		snap.Invoices = append(snap.Invoices, inv)
+	}
+	rows.Close()
+
+	rows, err = db.Query(`
+		SELECT id, vendor_id, amount_minor, status, refunded_amount_minor
+		FROM invoices WHERE status IN ('open', 'paid') ORDER BY id LIMIT 15`)
+	if err != nil {
+		return nil, fmt.Errorf("query sample open invoices: %w", err)
+	}
+	for rows.Next() {
+		var inv Invoice
+		if err := rows.Scan(&inv.ID, &inv.VendorID, &inv.AmountMinor, &inv.Status, &inv.RefundedAmountMinor); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		snap.SampleOpenInvoices = append(snap.SampleOpenInvoices, inv)
 	}
 	rows.Close()
 

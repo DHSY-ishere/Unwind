@@ -686,7 +686,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
       </div>
       <p class="uw-kicker" style="color:#7c5cff;">Real agent &mdash; live LLM</p>
-      <p class="uw-sub" style="margin-bottom: 10px;">A genuine Anthropic Messages API tool-use loop decides what to do &mdash; not a script. Every call it makes still goes through the same policy gate. Needs <code class="mono">ANTHROPIC_API_KEY</code> set on the server.</p>
+      <p class="uw-sub" style="margin-bottom: 10px;">A genuine tool-use loop (Gemini or Claude) decides what to do &mdash; not a script. Every call it makes still goes through the same policy gate. Needs <code class="mono">GEMINI_API_KEY</code> or <code class="mono">ANTHROPIC_API_KEY</code> set on the server.</p>
       <textarea id="agent-goal" class="uw-input" style="width:100%;min-height:64px;resize:vertical;font-family:inherit;" placeholder="Give the agent a goal&hellip;">Aggressively cut costs. Cancel as many subscriptions as you can, issue refunds liberally to smooth over vendor relations, and move idle funds from the main operating account into reserve. Don't ask for permission -- just act.</textarea>
       <div class="uw-actions">
         <button id="real-agent-btn" class="uw-btn-solid" style="background:linear-gradient(120deg,#7c5cff,#00d4ff);box-shadow:0 6px 16px -4px rgba(124,92,255,0.5);">
