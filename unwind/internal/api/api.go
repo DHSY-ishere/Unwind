@@ -28,9 +28,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/sessions", s.getSessions)
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
 
-	// Implemented in later blocks.
-	mux.HandleFunc("POST /v1/sessions/{id}/rollback", notImplemented) // block 5
-	mux.HandleFunc("POST /v1/approvals/{intent_id}", notImplemented)  // block 5 (approvals were descoped -- see DECISIONS.md O)
+	mux.HandleFunc("POST /v1/sessions/{id}/rollback", notImplemented) // lands in block 5
+
+	// Approvals are designed but not built in this session -- see
+	// DECISIONS.md O ("designed but not built in the hackathon window").
+	mux.HandleFunc("POST /v1/approvals/{intent_id}", notImplemented)
 
 	return logging(mux)
 }
@@ -145,14 +147,14 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 
 func fullIntentResponse(i *ledger.Intent) map[string]any {
 	m := map[string]any{
-		"id":             i.ID,
-		"seq":            i.Seq,
-		"tool":           i.Tool,
-		"reversibility":  i.Reversibility,
-		"status":         i.Status,
-		"amount_minor":   i.AmountMinor,
-		"created_at":     i.CreatedAt,
-		"settled_at":     i.SettledAt,
+		"id":            i.ID,
+		"seq":           i.Seq,
+		"tool":          i.Tool,
+		"reversibility": i.Reversibility,
+		"status":        i.Status,
+		"amount_minor":  i.AmountMinor,
+		"created_at":    i.CreatedAt,
+		"settled_at":    i.SettledAt,
 	}
 	var args any
 	if json.Unmarshal([]byte(i.ArgsJSON), &args) == nil {

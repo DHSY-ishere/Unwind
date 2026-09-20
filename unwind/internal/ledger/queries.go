@@ -18,11 +18,11 @@ func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 
 // Session mirrors the sessions table.
 type Session struct {
-	ID          string
-	CreatedAt   string
-	PolicyMode  string
-	Status      string
-	IntentCount int // only populated by ListSessions
+	ID          string `json:"id"`
+	CreatedAt   string `json:"created_at"`
+	PolicyMode  string `json:"policy_mode"`
+	Status      string `json:"status"`
+	IntentCount int    `json:"intent_count"` // only populated by ListSessions
 }
 
 // Intent mirrors the intents table. ResultJSON, CompensationJSON and

@@ -42,11 +42,9 @@ func main() {
 
 	root.AddCommand(
 		serve,
-		stub("demo", "Drive the agent against a scenario", "slice 1.5"),
-		stub("timeline", "Print the intent timeline for a session", "slice 1"),
-		stub("rollback", "Compensate every committed intent in a session", "slice 4"),
-		stub("approve", "Approve a held intent", "slice 5"),
-		stub("deny", "Deny a held intent", "slice 5"),
+		stub("demo", "Drive the agent against a scenario", "block 4"),
+		stub("timeline", "Print the intent timeline for a session", "block 3"),
+		stub("rollback", "Compensate every committed intent in a session", "block 5"),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -54,38 +52,52 @@ func main() {
 	}
 }
 
-func runServe(cmd *cobra.Command, args []string) error {
+// openEngine wires the ledger, seeded world, policy and engine together --
+// the same construction serve and every CLI subcommand shares, so there is
+// exactly one place that assembles the app.
+func openEngine() (*ledger.Ledger, *engine.Engine, error) {
 	pol, err := engine.LoadPolicy(policyPath)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	led, err := ledger.Open(dbPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := tools.EnsureWorld(led.DB); err != nil {
+		led.Close()
+		return nil, nil, err
+	}
+	registry := tools.NewRegistry(led.DB)
+	eng := engine.New(led, registry, pol)
+	return led, eng, nil
+}
+
+func runServe(cmd *cobra.Command, args []string) error {
+	led, eng, err := openEngine()
 	if err != nil {
 		return err
 	}
 	defer led.Close()
 
-	srv := &api.Server{Ledger: led, Policy: pol}
+	srv := &api.Server{Ledger: led, Engine: eng, Policy: eng.Policy}
 
 	log.SetFlags(log.Ltime)
 	log.Printf("ledger   %s", dbPath)
 	log.Printf("policy   %s (mode=%s, cap=%d paise over %d mutations)",
-		policyPath, pol.Mode, pol.Caps.MaxTotalAmountMinor, pol.Caps.MaxMutationsPerSession)
+		policyPath, eng.Policy.Mode, eng.Policy.Caps.MaxTotalAmountMinor, eng.Policy.Caps.MaxMutationsPerSession)
 	log.Printf("listening on %s", addr)
 
-	if err := http.ListenAndServe(addr, srv.Routes()); err != nil {
-		return err
-	}
-	return nil
+	return http.ListenAndServe(addr, srv.Routes())
 }
 
-// stub registers a command that is not built yet, naming the slice that lands it.
-func stub(name, short, slice string) *cobra.Command {
+// stub registers a command that is not built yet, naming the block that lands it.
+func stub(name, short, block string) *cobra.Command {
 	return &cobra.Command{
 		Use:   name,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(os.Stderr, "unwind %s: not implemented yet (%s)\n", name, slice)
+			fmt.Fprintf(os.Stderr, "unwind %s: not implemented yet (%s)\n", name, block)
 			return nil
 		},
 	}

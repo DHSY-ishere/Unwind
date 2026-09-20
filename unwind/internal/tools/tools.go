@@ -60,8 +60,8 @@ func argAmountMinor(args map[string]any, key string) (int64, error) {
 
 type cancelSubscriptionTool struct{ db *sql.DB }
 
-func (t *cancelSubscriptionTool) Name() string          { return "cancel_subscription" }
-func (t *cancelSubscriptionTool) Reversibility() Class   { return Reversible }
+func (t *cancelSubscriptionTool) Name() string                     { return "cancel_subscription" }
+func (t *cancelSubscriptionTool) Reversibility() Class             { return Reversible }
 func (t *cancelSubscriptionTool) AmountMinor(map[string]any) int64 { return 0 }
 
 func (t *cancelSubscriptionTool) findActiveSubscription(vendorID string) (map[string]any, error) {
@@ -151,7 +151,7 @@ func (t *cancelSubscriptionTool) Compensate(ctx context.Context, comp map[string
 
 type issueRefundTool struct{ db *sql.DB }
 
-func (t *issueRefundTool) Name() string        { return "issue_refund" }
+func (t *issueRefundTool) Name() string         { return "issue_refund" }
 func (t *issueRefundTool) Reversibility() Class { return Partial }
 func (t *issueRefundTool) AmountMinor(args map[string]any) int64 {
 	amt, _ := argAmountMinor(args, "amount")
@@ -285,7 +285,7 @@ func (t *issueRefundTool) Compensate(ctx context.Context, comp map[string]any) e
 
 type transferFundsTool struct{ db *sql.DB }
 
-func (t *transferFundsTool) Name() string        { return "transfer_funds" }
+func (t *transferFundsTool) Name() string         { return "transfer_funds" }
 func (t *transferFundsTool) Reversibility() Class { return Irreversible }
 func (t *transferFundsTool) AmountMinor(args map[string]any) int64 {
 	amt, _ := argAmountMinor(args, "amount")

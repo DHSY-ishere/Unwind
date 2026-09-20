@@ -242,6 +242,37 @@ of user input, never before.
 
 ---
 
+### O. Designed but not built in this autonomous run
+
+**Context.** Building solo against a hard clock, with explicit instruction to
+keep the tree buildable and never stop for questions. The following are kept
+in SPEC.md's design (schema columns, enum values, interface shapes already
+account for them) but have no working code path in this build:
+
+- **Approvals** (`POST /v1/approvals/{intent_id}`, the `awaiting_approval`
+  flow, ruling C's inline-execute-on-approve). The `approvals` table and the
+  `awaiting_approval`/`denied` intent statuses exist in the schema and
+  `ledger.MarkAwaitingApproval`/`MarkDenied` exist, but nothing in `Act`
+  currently produces `awaiting_approval`, because...
+- **Policy rules and the cumulative amount cap** (`rules:` in policy.yaml,
+  `require_approval`, `require_approval_above_inr`, `max_total_amount_inr`).
+  Block 8 wires only `max_mutations_per_session` and `per_tool` -- the blast
+  radius caps -- because those alone are enough to make the `guarded` demo
+  scenario block visibly, which is the point being proven on camera.
+- **`dryrun` policy mode.** `sessions.policy_mode` is captured per DECISIONS.md
+  I and `LoadPolicy` parses `mode: dryrun` correctly, but `Act` does not branch
+  on it -- every call executes for real regardless of mode.
+- **The Anthropic tool-use loop driver** (SPEC.md's actual agent). Only the
+  scripted driver (block 4) exists; ruling K already made the scripted path
+  primary, and the LLM loop was always the stretch goal.
+
+None of these are silently broken -- they are simply absent. `unwind serve`
+never returns a 202, `policy.yaml`'s `rules:` section is parsed but ignored,
+and there is no `--driver=anthropic` flag. This is restated in RUN_REPORT.md
+and the README's "designed but not built" section.
+
+---
+
 ## Build order
 
 | Slice | Delivers |
