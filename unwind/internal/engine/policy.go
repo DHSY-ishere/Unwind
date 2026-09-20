@@ -38,6 +38,28 @@ type Rule struct {
 	RequireApprovalAboveMinor int64 `json:"require_approval_above_minor,omitempty"`
 }
 
+// checkCaps evaluates the blast-radius caps this build implements, in
+// SPEC.md's order (per-tool cap before the session mutation cap -- first
+// failure wins). It counts committed intents only (DECISIONS.md D: blocked
+// intents count toward nothing, so this never double-penalizes a call for a
+// cap it already tripped). Amount caps and approval rules are not built --
+// DECISIONS.md O.
+func (e *Engine) checkCaps(sessionID, tool string) (ruleName string, blocked bool) {
+	if capN, ok := e.Policy.Caps.PerTool[tool]; ok {
+		count, err := e.Ledger.CountCommittedByTool(sessionID, tool)
+		if err == nil && count >= capN {
+			return fmt.Sprintf("per_tool.%s (max %d)", tool, capN), true
+		}
+	}
+	if maxMut := e.Policy.Caps.MaxMutationsPerSession; maxMut > 0 {
+		count, err := e.Ledger.CountCommitted(sessionID)
+		if err == nil && count >= maxMut {
+			return fmt.Sprintf("max_mutations_per_session (max %d)", maxMut), true
+		}
+	}
+	return "", false
+}
+
 // rawPolicy mirrors policy.yaml exactly, rupees and all. It exists so that the
 // conversion to minor units happens in exactly one place.
 type rawPolicy struct {

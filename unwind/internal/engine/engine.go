@@ -86,11 +86,23 @@ func (e *Engine) Act(ctx context.Context, sessionID, toolName string, args map[s
 		return nil, fmt.Errorf("insert intent: %w", err)
 	}
 
-	// SEAM: policy evaluation (landed in block 8) goes here. It runs against
-	// `session` (for policy_mode) and `intent` (for reversibility/amount),
-	// and on failure calls e.Ledger.MarkBlocked / MarkAwaitingApproval and
-	// returns the intent immediately, before Capture/Execute ever run.
-	_ = session
+	// Step 3: evaluate policy. Only the blast-radius caps
+	// (max_mutations_per_session, per_tool) are wired up -- see DECISIONS.md
+	// O for what's deliberately not built (amount caps, approval rules,
+	// dryrun). A blocked intent is still committed to the ledger as `blocked`
+	// -- a blocked action must leave a trace, not vanish silently.
+	if session.PolicyMode != ModeOff {
+		if ruleName, blocked := e.checkCaps(sessionID, toolName); blocked {
+			reasonJSON, _ := toJSON(map[string]any{
+				"error":       "blocked by policy",
+				"policy_rule": ruleName,
+			})
+			if err := e.Ledger.MarkBlocked(intent.ID, reasonJSON); err != nil {
+				return nil, fmt.Errorf("mark blocked: %w", err)
+			}
+			return e.Ledger.GetIntent(intent.ID)
+		}
+	}
 
 	// Step 4: capture compensation BEFORE execution (prior state only --
 	// DECISIONS.md A; the execute result is merged in below, post-commit).
