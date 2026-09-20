@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en" data-theme="dim">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unwind</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b0c0e;
+    --panel: #131417;
+    --line: #24262b;
+    --accent: #e8c14a;
+    --fg: #d8dade;
+    --fg-dim: #7d818a;
+    --ok: #6fd58c;
+    --bad: #e8607a;
+    --warn: #e8b24a;
+  }
+  * { box-sizing: border-box; border-radius: 0 !important; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    margin: 0;
+    padding-bottom: 5rem;
+  }
+  .hairline { border: 1px solid var(--line); }
+  .hairline-b { border-bottom: 1px solid var(--line); }
+  .hairline-t { border-top: 1px solid var(--line); }
+  .panel { background: var(--panel); }
+  .dim { color: var(--fg-dim); }
+  .accent { color: var(--accent); }
+  ::placeholder { color: var(--fg-dim); }
+  input, select {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  .btn-flat {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--fg);
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .btn-flat:hover { border-color: var(--fg-dim); }
+  .btn-flat:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-danger {
+    border: 1px solid var(--bad);
+    background: transparent;
+    color: var(--bad);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .btn-danger:hover:not(:disabled) { background: var(--bad); color: #0b0c0e; }
+  .btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .pill {
+    display: inline-block;
+    padding: 0.05rem 0.5rem;
+    border: 1px solid currentColor;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .pill-committed { color: var(--fg-dim); }
+  .pill-blocked, .pill-denied, .pill-failed, .pill-failed_compensation { color: var(--bad); }
+  .pill-uncompensable { color: var(--warn); }
+  .pill-compensated { color: var(--ok); }
+  .pill-awaiting_approval { color: var(--warn); }
+  .pill-pending { color: var(--fg-dim); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 3rem 1fr 11rem 8rem 9rem;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.6rem 1rem;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  @media (max-width: 720px) {
+    .row { grid-template-columns: 2.5rem 1fr; grid-auto-rows: auto; row-gap: 0.25rem; }
+    .row .col-amount, .row .col-status { grid-column: 2; justify-self: start; }
+  }
+
+  .struck { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+  @keyframes flipIn {
+    0%   { transform: rotateX(0deg); opacity: 1; }
+    45%  { transform: rotateX(90deg); opacity: 0.3; }
+    55%  { transform: rotateX(90deg); opacity: 0.3; }
+    100% { transform: rotateX(0deg); opacity: 1; }
+  }
+  .flip { animation: flipIn 320ms ease-in-out; transform-style: preserve-3d; }
+
+  .stat-box { padding: 0.6rem 1rem; border-left: 1px solid var(--line); }
+  .stat-box:first-child { border-left: none; }
+  .stat-label { color: var(--fg-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat-value { font-size: 1.1rem; font-weight: 700; }
+</style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Session picker (shown until a session is loaded) -->
+  <div id="picker" class="max-w-xl mx-auto mt-24 p-6 hairline panel">
+    <div class="accent text-lg font-bold mb-1">UNWIND</div>
+    <div class="dim mb-4">transactional side effects for AI agents</div>
+    <div class="flex gap-2">
+      <input id="session-input" list="session-list" placeholder="session id (e.g. rogue-a1b2c3)" class="flex-1" />
+      <datalist id="session-list"></datalist>
+      <button id="load-btn" class="btn-flat">LOAD</button>
+    </div>
+    <div id="picker-error" class="text-xs mt-2" style="color: var(--bad)"></div>
+  </div>
+
+  <!-- Main dashboard (shown once a session is loaded) -->
+  <div id="dashboard" class="hidden">
+    <div class="hairline-b panel">
+      <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+        <div>
+          <span class="accent font-bold">UNWIND</span>
+          <span class="dim">/</span>
+          <span id="hdr-session" class="font-bold"></span>
+          <span id="hdr-mode" class="pill pill-committed ml-2"></span>
+        </div>
+        <button id="change-session" class="btn-flat text-xs">CHANGE SESSION</button>
+      </div>
+      <div class="max-w-4xl mx-auto grid grid-cols-4 hairline-t" style="border-color: var(--line)">
+        <div class="stat-box"><div class="stat-label">mutations</div><div id="stat-mutations" class="stat-value">0</div></div>
+        <div class="stat-box"><div class="stat-label">₹ moved</div><div id="stat-amount" class="stat-value">₹0</div></div>
+        <div class="stat-box"><div class="stat-label">compensated</div><div id="stat-compensated" class="stat-value">0</div></div>
+        <div class="stat-box"><div class="stat-label">session status</div><div id="stat-status" class="stat-value">-</div></div>
+      </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto mt-4 hairline panel">
+      <div class="row hairline-b dim text-xs" style="border-color: var(--line)">
+        <div>SEQ</div>
+        <div>TOOL / ARGS</div>
+        <div></div>
+        <div class="text-right">AMOUNT</div>
+        <div class="text-right">STATUS</div>
+      </div>
+      <div id="rows"></div>
+      <div id="empty" class="p-6 dim hidden">no intents yet -- fire some calls at POST /v1/act</div>
+    </div>
+  </div>
+
+  <!-- Rollback footer bar -->
+  <div id="footer" class="hidden fixed bottom-0 left-0 right-0 hairline-t panel">
+    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+      <div id="footer-msg" class="dim text-xs"></div>
+      <button id="rollback-btn" class="btn-flat btn-danger px-6 py-2">ROLLBACK SESSION</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  let sessionID = qs.get('session') || '';
+  let pollTimer = null;
+  let lastStatuses = {}; // intent id -> status, from the previous poll
+
+  function rupees(paise) {
+    const neg = paise < 0;
+    paise = Math.abs(paise);
+    let s = String(Math.floor(paise / 100));
+    if (s.length > 3) {
+      let head = s.slice(0, -3), tail = s.slice(-3), groups = [];
+      while (head.length > 2) { groups.unshift(head.slice(-2)); head = head.slice(0, -2); }
+      if (head) groups.unshift(head);
+      s = groups.join(',') + ',' + tail;
+    }
+    return (neg ? '-' : '') + '₹' + s;
+  }
+
+  function glyph(status) {
+    switch (status) {
+      case 'committed': return '✔';
+      case 'compensated': return '↺';
+      case 'uncompensable': return '⚠';
+      case 'blocked': case 'denied': return '✘';
+      case 'failed': case 'failed_compensation': return '✗';
+      case 'awaiting_approval': return '⏳';
+      default: return '◌';
+    }
+  }
+
+  function argsSummary(args) {
+    if (!args) return '';
+    return Object.keys(args).sort().map(k => {
+      let v = args[k];
+      if (k === 'amount' && typeof v === 'number') v = rupees(v);
+      return `${k}=${v}`;
+    }).join(' ');
+  }
+
+  async function fetchSessions() {
+    try {
+      const res = await fetch('/v1/sessions');
+      if (!res.ok) return;
+      const sessions = await res.json();
+      const list = $('session-list');
+      list.innerHTML = '';
+      (sessions || []).forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        list.appendChild(opt);
+      });
+    } catch (e) { /* best-effort */ }
+  }
+
+  function rowHTML(i) {
+    const struck = i.status === 'compensated';
+    const amt = rupees(i.amount_minor);
+    return `
+      <div class="dim">#${i.seq}</div>
+      <div>
+        <span class="font-bold">${i.tool}</span>
+        <span class="dim ml-2">${argsSummary(i.args)}</span>
+      </div>
+      <div class="dim text-xs">${i.reversibility === 'irreversible' ? '(irreversible)' : ''}</div>
+      <div class="col-amount text-right ${struck ? 'struck dim' : ''}">${amt}</div>
+      <div class="col-status text-right"><span class="pill pill-${i.status}">${glyph(i.status)} ${i.status}</span></div>
+    `;
+  }
+
+  function ensureRow(intent) {
+    let el = document.querySelector(`[data-intent-id="${intent.id}"]`);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'row';
+      el.setAttribute('data-intent-id', intent.id);
+      $('rows').appendChild(el);
+    }
+    el.innerHTML = rowHTML(intent);
+    return el;
+  }
+
+  function render(session, intents) {
+    $('hdr-session').textContent = session.id;
+    $('hdr-mode').textContent = session.policy_mode;
+    $('stat-status').textContent = session.status;
+
+    let mutations = 0, amount = 0, compensated = 0;
+    intents.forEach(i => {
+      if (i.status === 'committed' || i.status === 'compensated' || i.status === 'uncompensable' || i.status === 'failed_compensation') mutations++;
+      if (i.status !== 'blocked') amount += (i.amount_minor || 0);
+      if (i.status === 'compensated') compensated++;
+    });
+    $('stat-mutations').textContent = mutations;
+    $('stat-amount').textContent = rupees(amount);
+    $('stat-compensated').textContent = compensated;
+
+    // Order by seq ascending -- top to bottom is oldest to newest, matching
+    // the CLI timeline.
+    const sorted = [...intents].sort((a, b) => a.seq - b.seq);
+    $('empty').classList.toggle('hidden', sorted.length > 0);
+
+    const seen = new Set();
+    sorted.forEach(i => {
+      ensureRow(i);
+      seen.add(i.id);
+    });
+    // Drop rows for intents no longer present (shouldn't happen, but keeps
+    // the DOM honest if a session gets recreated with the same id).
+    document.querySelectorAll('#rows [data-intent-id]').forEach(el => {
+      if (!seen.has(el.getAttribute('data-intent-id'))) el.remove();
+    });
+
+    const canRollback = session.status === 'active' && intents.some(i => i.status === 'committed');
+    $('rollback-btn').disabled = !canRollback;
+    $('footer-msg').textContent = session.status === 'active'
+      ? 'reverses every committed intent, most recent first'
+      : `session is ${session.status}`;
+  }
+
+  async function loadSession(id, { silent } = {}) {
+    const res = await fetch(`/v1/sessions/${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      if (!silent) $('picker-error').textContent = 'session not found';
+      return false;
+    }
+    const data = await res.json();
+    sessionID = id;
+    $('picker').classList.add('hidden');
+    $('dashboard').classList.remove('hidden');
+    $('footer').classList.remove('hidden');
+    render(data.session, data.intents);
+    lastStatuses = Object.fromEntries(data.intents.map(i => [i.id, i.status]));
+    history.replaceState(null, '', `?session=${encodeURIComponent(id)}`);
+    return true;
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      if (!sessionID) return;
+      try {
+        const res = await fetch(`/v1/sessions/${encodeURIComponent(sessionID)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        render(data.session, data.intents);
+        lastStatuses = Object.fromEntries(data.intents.map(i => [i.id, i.status]));
+      } catch (e) { /* quiet -- next tick retries */ }
+    }, 800);
+  }
+
+  async function doRollback() {
+    const btn = $('rollback-btn');
+    btn.disabled = true;
+    btn.textContent = 'ROLLING BACK…';
+    try {
+      await fetch(`/v1/sessions/${encodeURIComponent(sessionID)}/rollback`, { method: 'POST' });
+      const res = await fetch(`/v1/sessions/${encodeURIComponent(sessionID)}`);
+      const data = await res.json();
+      const sorted = [...data.intents].sort((a, b) => a.seq - b.seq);
+
+      // The money shot: flip newly-compensated rows top to bottom with a
+      // 60ms stagger, then settle into the polled steady state.
+      let delay = 0;
+      for (const i of sorted) {
+        if (lastStatuses[i.id] !== 'compensated' && i.status === 'compensated') {
+          const d = delay;
+          setTimeout(() => {
+            const el = ensureRow(i);
+            el.classList.add('flip');
+            setTimeout(() => el.classList.remove('flip'), 360);
+          }, d);
+          delay += 60;
+        } else {
+          ensureRow(i);
+        }
+      }
+      setTimeout(() => {
+        render(data.session, data.intents);
+        lastStatuses = Object.fromEntries(data.intents.map(i => [i.id, i.status]));
+        btn.textContent = 'ROLLBACK SESSION';
+      }, delay + 400);
+    } catch (e) {
+      btn.textContent = 'ROLLBACK SESSION';
+      btn.disabled = false;
+    }
+  }
+
+  $('load-btn').addEventListener('click', () => {
+    const v = $('session-input').value.trim();
+    if (v) loadSession(v);
+  });
+  $('session-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('load-btn').click();
+  });
+  $('change-session').addEventListener('click', () => {
+    $('dashboard').classList.add('hidden');
+    $('footer').classList.add('hidden');
+    $('picker').classList.remove('hidden');
+    $('picker-error').textContent = '';
+    history.replaceState(null, '', location.pathname);
+  });
+  $('rollback-btn').addEventListener('click', doRollback);
+
+  fetchSessions();
+  if (sessionID) {
+    loadSession(sessionID, { silent: true }).then(ok => { if (ok) startPolling(); });
+  }
+  startPolling();
+})();
+</script>
+</body>
+</html>

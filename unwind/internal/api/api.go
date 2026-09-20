@@ -3,6 +3,7 @@
 package api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"log"
@@ -11,6 +12,9 @@ import (
 	"github.com/DHSY-ishere/unwind/internal/engine"
 	"github.com/DHSY-ishere/unwind/internal/ledger"
 )
+
+//go:embed ui/index.html
+var uiHTML []byte
 
 type Server struct {
 	Ledger *ledger.Ledger
@@ -23,6 +27,7 @@ type Server struct {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /{$}", s.getUI)
 	mux.HandleFunc("GET /v1/policy", s.getPolicy)
 	mux.HandleFunc("POST /v1/act", s.postAct)
 	mux.HandleFunc("GET /v1/sessions", s.getSessions)
@@ -35,6 +40,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/approvals/{intent_id}", notImplemented)
 
 	return logging(mux)
+}
+
+// getUI serves the embedded single-page dashboard (DECISIONS.md J).
+func (s *Server) getUI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(uiHTML)
 }
 
 // getPolicy serves the active policy in minor units (DECISIONS.md F). It always
