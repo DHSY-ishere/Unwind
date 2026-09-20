@@ -198,6 +198,50 @@ Only the `rogue` scenario is in scope.
 
 ---
 
+### L. `list_vendors` and the `read` class are cut
+
+**Problem.** Ruling B added a `read` reversibility class solely so
+`list_vendors` (a non-ledgered read tool) could short-circuit `Act` before any
+database write. Building an autonomous run under a hard time budget.
+
+**Ruling.** `list_vendors` is cut entirely. The `Class` enum reverts to exactly
+`reversible | partial | irreversible`, matching SPEC.md's data model with no
+addition. `Act` no longer needs a pre-write short-circuit because every
+registered tool is now ledgered. Ruling B is superseded by this cut.
+
+**Reasoning.** `list_vendors` was a read-only convenience with no compensation
+story and no policy interaction -- cutting it removes a whole code path (the
+short-circuit, the enum value, the "not ledgered" special case in every
+consumer of intents) for zero loss to the demo, which is about mutation and
+reversal, not catalog browsing.
+
+---
+
+### M. `cancel_subscription(vendor_id)` identifies the subscription by vendor
+
+**Problem.** SPEC.md's own tool signature is `cancel_subscription(vendor_id)`
+-- there is no `subscription_id` argument, so the tool cannot address a
+specific subscription if a vendor could have more than one.
+
+**Ruling.** The seeded world gives each vendor at most one subscription. The
+tool finds "the active subscription for this vendor" by `vendor_id` alone.
+This is the only reading under which the spec's literal signature is callable.
+
+---
+
+### N. Refund and transfer amounts are minor units on the wire
+
+**Problem.** SPEC.md doesn't state the unit for `issue_refund`'s and
+`transfer_funds`' `amount` argument.
+
+**Ruling.** Tool args carry amounts in paise (minor units), consistent with
+`intents.amount_minor` and with ruling F's "no rupee value past the parser" --
+here extended to "no rupee value anywhere in the system", including tool call
+arguments. The demo driver and any future UI convert from rupees at the point
+of user input, never before.
+
+---
+
 ## Build order
 
 | Slice | Delivers |
