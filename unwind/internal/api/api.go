@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DHSY-ishere/unwind/internal/awsaudit"
 	"github.com/DHSY-ishere/unwind/internal/demo"
 	"github.com/DHSY-ishere/unwind/internal/engine"
 	"github.com/DHSY-ishere/unwind/internal/ledger"
@@ -31,6 +32,9 @@ type Server struct {
 	Ledger *ledger.Ledger
 	Engine *engine.Engine
 	Broker *Broker
+	// Audit is nil when S3 archiving isn't configured -- every call site
+	// treats that as "feature absent", never as an error.
+	Audit *awsaudit.Exporter
 }
 
 // Routes returns the full mux. Endpoints not yet implemented answer 501 so the
@@ -53,6 +57,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/stream", s.getStream)
 
 	mux.HandleFunc("POST /v1/sessions/{id}/rollback", s.postRollback)
+	mux.HandleFunc("POST /v1/sessions/{id}/archive", s.postArchive)
 
 	// Approvals are designed but not built in this session -- see
 	// DECISIONS.md O ("designed but not built in the hackathon window").
@@ -217,8 +222,10 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 		out = append(out, fullIntentResponse(i))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"session": sess,
-		"intents": out,
+		"session":       sess,
+		"intents":       out,
+		"audit_enabled": s.Audit.Enabled(),
+		"audit_bucket":  s.Audit.Bucket(),
 	})
 }
 
@@ -263,7 +270,70 @@ func (s *Server) postRollback(w http.ResponseWriter, r *http.Request) {
 		"type": "rollback", "session_id": id,
 		"compensated": summary.Compensated, "uncompensable": summary.Uncompensable, "failed": summary.Failed,
 	})
-	writeJSON(w, http.StatusOK, summary)
+
+	// A rolled-back session is a settled one -- this is the moment the audit
+	// record is worth freezing. Best-effort: an S3 failure is logged and
+	// surfaced, never allowed to fail the rollback itself, which has already
+	// really happened by this point.
+	resp := map[string]any{
+		"compensated": summary.Compensated, "uncompensable": summary.Uncompensable, "failed": summary.Failed,
+	}
+	if s.Audit.Enabled() {
+		if archived, err := s.archiveSession(r.Context(), id); err != nil {
+			log.Printf("archive after rollback: %v", err)
+			resp["archive_error"] = err.Error()
+		} else {
+			resp["archived"] = archived
+			s.publish(Event{"type": "archive", "session_id": id, "uri": archived.URI})
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// archiveSession reads a session's full ledger and writes it to S3.
+func (s *Server) archiveSession(ctx context.Context, sessionID string) (*awsaudit.Result, error) {
+	sess, err := s.Ledger.GetSession(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("session not found: %w", err)
+	}
+	intents, err := s.Ledger.ListIntents(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list intents: %w", err)
+	}
+	out := make([]map[string]any, 0, len(intents))
+	for _, i := range intents {
+		m := fullIntentResponse(i)
+		// The compensation record is the part an auditor most needs and the
+		// part the timeline view omits -- include it here.
+		if i.CompensationJSON != "" {
+			var comp any
+			if json.Unmarshal([]byte(i.CompensationJSON), &comp) == nil {
+				m["compensation"] = comp
+			}
+		}
+		out = append(out, m)
+	}
+	return s.Audit.Export(ctx, sessionID, sess, out)
+}
+
+// postArchive is POST /v1/sessions/{id}/archive: freeze this session's ledger
+// into S3 on demand, independent of rollback.
+func (s *Server) postArchive(w http.ResponseWriter, r *http.Request) {
+	if !s.Audit.Enabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "S3 archiving is not configured -- set AWS_S3_BUCKET (and credentials) and restart the server",
+		})
+		return
+	}
+	id := r.PathValue("id")
+	archived, err := s.archiveSession(r.Context(), id)
+	if err != nil {
+		log.Printf("archive %s: %v", id, err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	s.publish(Event{"type": "archive", "session_id": id, "uri": archived.URI})
+	writeJSON(w, http.StatusOK, archived)
 }
 
 // getStats is GET /v1/stats: the whole-deployment rollup the Control Room's

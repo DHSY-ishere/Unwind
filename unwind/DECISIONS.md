@@ -488,6 +488,68 @@ routine hygiene, independent of anything in this codebase.
 
 ---
 
+### V. AWS: S3 as the audit tier, chosen on cost and theme
+
+**Context.** This is an AWS hackathon project, and the build machine has no
+AWS CLI, no credentials, and an unknown account status. The brief was
+explicitly "whatever is free and won't cost me money."
+
+**Cost reality, which drove the choice:**
+
+| Service | Cost at this project's scale |
+|---|---|
+| S3 (audit JSON, ~17 KB per session) | free tier covers it; outside it, fractions of a cent |
+| DynamoDB | 25 GB + 25 WCU/RCU is *always*-free, not a 12-month trial |
+| EventBridge + SNS | $1 per **million** events; a demo emits ~50 |
+| **Bedrock** | **genuinely metered per token** -- pennies per run, but not free |
+
+So Bedrock, the obvious "AWS AI" headline, is the one option that costs real
+money. It is deliberately **not** built: the `ExecTool` contract already has
+two implementations (rulings T, U), so a third is mechanical work that can
+happen in an hour if hackathon credits materialize. Spending the user's money
+to pre-build it would have been the wrong call.
+
+**Ruling: S3 immutable audit archiving** (`internal/awsaudit`), because it is
+free at this scale *and* it is the integration that actually means something
+here. The SQLite ledger proves what an agent did, but it sits on the same
+machine as the agent's blast radius -- anything that can reach the process can
+reach the file. Exporting each settled session to versioned S3 (Object Lock in
+COMPLIANCE mode, where configured) puts the record somewhere the agent, the
+operator, and this process cannot rewrite. **That is the difference between a
+log and an audit trail**, and it is the natural endpoint of a project whose
+whole thesis is accountability for agent actions.
+
+Specifics:
+
+- `POST /v1/sessions/{id}/archive` archives on demand;
+  `POST /v1/sessions/{id}/rollback` archives automatically, since a
+  rolled-back session is a settled one and that is the moment the record is
+  worth freezing. The archive is **best-effort on the rollback path**: an S3
+  failure is logged and returned in `archive_error`, never allowed to fail a
+  rollback that has already really happened.
+- The key is deterministic per session (`sessions/<id>.json`). Re-archiving
+  overwrites in place -- and with bucket versioning on, "overwrite" preserves
+  every prior version, which is the entire point.
+- The record is **self-contained**: session, every intent in seq order, and
+  the captured compensation record (the part the timeline view omits and an
+  auditor most needs). An auditor reading one object needs nothing else.
+- **Absent unless configured.** No `AWS_S3_BUCKET` means `Exporter` is nil,
+  the endpoint answers 503 with an explanation, the UI button never renders,
+  and rollback behaves exactly as before. Verified both ways.
+- `AWS_ENDPOINT_URL` + path-style addressing make it work against LocalStack
+  or any S3-compatible endpoint, so it is developable and demoable at zero
+  cost with no AWS account.
+
+**Verified without an AWS account.** `internal/awsaudit/s3_test.go` runs the
+real SDK against an `httptest` stand-in and asserts the request is
+SigV4-signed, path-style addressed, keyed correctly, and that the uploaded
+body round-trips as a complete audit record. End-to-end, a full rogue run was
+archived through the running server: 17 intents, 17,242 bytes, the
+irreversible transfer preserved as `uncompensable`, and each compensated
+intent's captured prior state intact.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

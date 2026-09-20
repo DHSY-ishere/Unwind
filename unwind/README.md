@@ -164,6 +164,32 @@ See `DECISIONS.md` rulings **O**, **T** and **U** for the reasoning, and
 `RUN_REPORT.md` for what was actually run and verified in the original
 session.
 
+## AWS: the audit tier
+
+The SQLite ledger proves what an agent did, but it lives on the same machine
+as the agent's blast radius -- anything that can reach the process can reach
+the file. Unwind exports each settled session to **Amazon S3** as a
+self-contained, tamper-evident audit record: the session, every intent in seq
+order, and the captured compensation state an auditor needs to reconstruct
+what happened and what was reversed.
+
+```sh
+AWS_S3_BUCKET=my-unwind-audit AWS_REGION=us-east-1 ./unwind serve
+```
+
+- `POST /v1/sessions/{id}/archive` archives on demand
+- rollback archives **automatically** -- a rolled-back session is a settled
+  one, and that's the moment worth freezing
+- the key is stable per session (`sessions/<id>.json`), so with **bucket
+  versioning + Object Lock** every re-archive preserves the prior version
+  rather than replacing it. That's what makes it an audit trail rather than a
+  log the agent could rewrite.
+
+Unconfigured, the feature is simply absent: the endpoint answers 503, the UI
+button never renders, and rollback behaves exactly as before. Set
+`AWS_ENDPOINT_URL=http://localhost:4566` to develop against LocalStack with
+no AWS account at all.
+
 ## The real agent
 
 `POST /v1/agent/run` runs a genuine tool-use loop -- Gemini or Claude decides

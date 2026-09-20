@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DHSY-ishere/unwind/internal/api"
+	"github.com/DHSY-ishere/unwind/internal/awsaudit"
 	"github.com/DHSY-ishere/unwind/internal/engine"
 	"github.com/DHSY-ishere/unwind/internal/ledger"
 	"github.com/DHSY-ishere/unwind/internal/tools"
@@ -115,7 +116,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	defer led.Close()
 
-	srv := &api.Server{Ledger: led, Engine: eng, Broker: api.NewBroker()}
+	// S3 audit archiving is optional: a nil exporter means "not configured",
+	// and every call site treats that as the feature being absent rather
+	// than an error. The local demo never depends on AWS being reachable.
+	audit, err := awsaudit.New(cmd.Context())
+	if err != nil {
+		log.Printf("s3 archiving disabled: %v", err)
+	}
+
+	srv := &api.Server{Ledger: led, Engine: eng, Broker: api.NewBroker(), Audit: audit}
 
 	log.SetFlags(log.Ltime)
 	log.Printf("ledger   %s", dbPath)

@@ -827,6 +827,10 @@
 <div id="footer" hidden>
   <div class="uw-footer-inner">
     <div id="footer-msg"></div>
+    <button id="archive-btn" class="uw-btn-ghost" style="color: var(--ink-soft); background: transparent; border-color: var(--line); margin-left: auto;" hidden>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      ARCHIVE TO S3
+    </button>
     <button id="rollback-btn" class="uw-btn-danger">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       ROLLBACK SESSION
@@ -994,6 +998,14 @@
         <span class="uw-ticker-session">${ev.session_id}</span>
         <span class="uw-ticker-tool">rollback</span>
         <span class="uw-ticker-status-compensated">${ev.compensated} compensated${ev.uncompensable ? `, ${ev.uncompensable} uncompensable` : ''}${ev.failed ? `, ${ev.failed} failed` : ''}</span>
+      `;
+    }
+    if (ev.type === 'archive') {
+      return `
+        <span class="uw-ticker-dot" style="background:#ff9900"></span>
+        <span class="uw-ticker-session">${ev.session_id}</span>
+        <span class="uw-ticker-tool">archived</span>
+        <span style="color:#ffb84d">${ev.uri}</span>
       `;
     }
     if (ev.type === 'agent_text') {
@@ -1381,8 +1393,34 @@
     const data = await res.json();
     renderSession(data.session, data.intents);
     lastStatuses = Object.fromEntries(data.intents.map(i => [i.id, i.status]));
+    // The archive button only exists when the server has S3 configured --
+    // no bucket, no button, rather than a button that always fails.
+    auditBucket = data.audit_bucket || '';
+    $('archive-btn').hidden = !data.audit_enabled;
     return true;
   }
+
+  let auditBucket = '';
+
+  async function archiveSession() {
+    const btn = $('archive-btn');
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.textContent = 'ARCHIVING…';
+    try {
+      const res = await fetch(`/v1/sessions/${encodeURIComponent(sessionID)}/archive`, { method: 'POST' });
+      const data = await res.json();
+      $('footer-msg').textContent = res.ok
+        ? `archived to ${data.uri}${data.version_id ? ' (version ' + data.version_id.slice(0, 8) + ')' : ''}`
+        : (data.error || 'archive failed');
+    } catch (e) {
+      $('footer-msg').textContent = 'archive failed -- is the server still up?';
+    } finally {
+      btn.innerHTML = original;
+      btn.disabled = false;
+    }
+  }
+  $('archive-btn').addEventListener('click', archiveSession);
 
   async function doRollback() {
     const btn = $('rollback-btn');
