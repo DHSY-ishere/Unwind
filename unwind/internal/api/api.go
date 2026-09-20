@@ -10,7 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	mrand "math/rand"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/DHSY-ishere/unwind/internal/demo"
 	"github.com/DHSY-ishere/unwind/internal/engine"
@@ -24,6 +27,7 @@ var uiHTML []byte
 type Server struct {
 	Ledger *ledger.Ledger
 	Engine *engine.Engine
+	Broker *Broker
 }
 
 // Routes returns the full mux. Endpoints not yet implemented answer 501 so the
@@ -40,6 +44,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/world", s.getWorld)
 	mux.HandleFunc("POST /v1/world/reset", s.postWorldReset)
 	mux.HandleFunc("POST /v1/demo/run", s.postDemoRun)
+	mux.HandleFunc("POST /v1/swarm/run", s.postSwarmRun)
+	mux.HandleFunc("GET /v1/stream", s.getStream)
 
 	mux.HandleFunc("POST /v1/sessions/{id}/rollback", s.postRollback)
 
@@ -133,7 +139,19 @@ func (s *Server) postAct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.publish(Event{
+		"type": "act", "session_id": req.SessionID, "tool": req.Tool,
+		"status": intent.Status, "seq": intent.Seq,
+	})
 	writeJSON(w, statusCodeFor(intent.Status), intentResponse(intent))
+}
+
+// publish is a nil-safe wrapper so a Server built without a Broker (tests,
+// future embedders) doesn't need to care about the ticker.
+func (s *Server) publish(ev Event) {
+	if s.Broker != nil {
+		s.Broker.Publish(ev)
+	}
 }
 
 func statusCodeFor(status string) int {
@@ -236,6 +254,10 @@ func (s *Server) postRollback(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
+	s.publish(Event{
+		"type": "rollback", "session_id": id,
+		"compensated": summary.Compensated, "uncompensable": summary.Uncompensable, "failed": summary.Failed,
+	})
 	writeJSON(w, http.StatusOK, summary)
 }
 
@@ -285,6 +307,14 @@ func randomSessionID(prefix string) string {
 // over real HTTP (DECISIONS.md P), just triggered from the browser instead of
 // a terminal, and reactive to the Policy console's live edits
 // (DECISIONS.md R) rather than to which policy.yaml the process booted with.
+// jitter sleeps a random duration in [minMs, maxMs) so a scripted run reads
+// as a stream of independent calls arriving over the live ticker, not an
+// instant burst -- purely a presentation pacing choice, not a change to how
+// Act itself behaves.
+func jitter(minMs, maxMs int) {
+	time.Sleep(time.Duration(minMs+mrand.Intn(maxMs-minMs)) * time.Millisecond)
+}
+
 func (s *Server) postDemoRun(w http.ResponseWriter, r *http.Request) {
 	sessionID := randomSessionID("run")
 	actions := demo.RogueSequence()
@@ -292,12 +322,16 @@ func (s *Server) postDemoRun(w http.ResponseWriter, r *http.Request) {
 	results := make([]map[string]any, 0, len(actions))
 	committed, blocked, other := 0, 0, 0
 	for i, a := range actions {
+		if i > 0 {
+			jitter(60, 160)
+		}
 		idemKey := fmt.Sprintf("demo-%s-%02d", sessionID, i+1)
 		intent, err := s.Engine.Act(r.Context(), sessionID, a.Tool, a.Args, idemKey)
 		if err != nil {
 			log.Printf("demo run act error: %v", err)
 			other++
 			results = append(results, map[string]any{"tool": a.Tool, "status": "error"})
+			s.publish(Event{"type": "act", "session_id": sessionID, "tool": a.Tool, "status": "error"})
 			continue
 		}
 		switch intent.Status {
@@ -309,6 +343,7 @@ func (s *Server) postDemoRun(w http.ResponseWriter, r *http.Request) {
 			other++
 		}
 		results = append(results, map[string]any{"tool": a.Tool, "status": intent.Status, "seq": intent.Seq})
+		s.publish(Event{"type": "act", "session_id": sessionID, "tool": a.Tool, "status": intent.Status, "seq": intent.Seq})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -318,6 +353,113 @@ func (s *Server) postDemoRun(w http.ResponseWriter, r *http.Request) {
 		"other":      other,
 		"results":    results,
 	})
+}
+
+// postSwarmRun is POST /v1/swarm/run: three named agents (DECISIONS.md S)
+// fire concurrently at one shared session -- a real goroutine race, not a
+// simulated one. The single writer connection in ledger.Open (plus the caps
+// mutex added for the Policy console) already makes concurrent Act() calls
+// safe; this handler adds nothing to that beyond dispatching goroutines and
+// collecting results.
+func (s *Server) postSwarmRun(w http.ResponseWriter, r *http.Request) {
+	sessionID := randomSessionID("swarm")
+	plan := demo.SwarmPlan()
+
+	type agentResult struct {
+		Agent     string `json:"agent"`
+		Color     string `json:"color"`
+		Committed int    `json:"committed"`
+		Blocked   int    `json:"blocked"`
+		Other     int    `json:"other"`
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	results := make([]agentResult, 0, len(plan))
+
+	for agent, actions := range plan {
+		wg.Add(1)
+		go func(agent demo.Agent, actions []demo.Action) {
+			defer wg.Done()
+			res := agentResult{Agent: agent.Name, Color: agent.Color}
+			for i, a := range actions {
+				if i > 0 {
+					jitter(80, 220)
+				}
+				idemKey := fmt.Sprintf("swarm-%s-%s-%02d", sessionID, agent.Name, i+1)
+				intent, err := s.Engine.Act(r.Context(), sessionID, a.Tool, a.Args, idemKey)
+				if err != nil {
+					log.Printf("swarm run act error (%s): %v", agent.Name, err)
+					res.Other++
+					s.publish(Event{"type": "act", "session_id": sessionID, "tool": a.Tool, "status": "error", "agent": agent.Name, "color": agent.Color})
+					continue
+				}
+				switch intent.Status {
+				case "committed":
+					res.Committed++
+				case "blocked":
+					res.Blocked++
+				default:
+					res.Other++
+				}
+				s.publish(Event{
+					"type": "act", "session_id": sessionID, "tool": a.Tool, "status": intent.Status,
+					"seq": intent.Seq, "agent": agent.Name, "color": agent.Color,
+				})
+			}
+			mu.Lock()
+			results = append(results, res)
+			mu.Unlock()
+		}(agent, actions)
+	}
+	wg.Wait()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session_id": sessionID,
+		"agents":     results,
+	})
+}
+
+// getStream is GET /v1/stream: a Server-Sent Events feed of every act/rollback
+// event across every session, for the Control Room's live ticker. Purely a
+// UI convenience -- nothing here is durable, and a tab that isn't open when
+// an event fires simply never sees it (the ledger itself is the durable
+// record; this is a window onto it).
+func (s *Server) getStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming unsupported"})
+		return
+	}
+	if s.Broker == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no broker configured"})
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	ch, unsubscribe := s.Broker.Subscribe()
+	defer unsubscribe()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(ev)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
 }
 
 // getSessions is GET /v1/sessions (DECISIONS.md J).

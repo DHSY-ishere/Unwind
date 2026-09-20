@@ -355,6 +355,42 @@ mutability seam.
 
 ---
 
+### S. Swarm, live ticker, and a client-side time-travel scrubber
+
+**Context.** Second post-ship round: the user wanted the demo to say something
+bigger than "one agent, caught." Three additions, all additive to the
+existing pipeline.
+
+- **Multi-Agent Swarm** (`POST /v1/swarm/run`). Three named, colored agents
+  (`internal/demo`: `Cutter-Alpha` cancels subscriptions, `Refund-Beta`
+  issues refunds, `Finance-Gamma` makes the one transfer) fire concurrently
+  via goroutines at **one shared session**, racing against the same caps.
+  `Act()` itself has no concept of "agent" -- the name and color are a
+  presentation-layer tag carried only in the SSE event and the HTTP
+  response, never written to the ledger. This is deliberate: the point is
+  that the policy gate arbitrates a shared budget regardless of which caller
+  is asking, so the gate must not need to know who's asking. No engine
+  changes were needed for correctness -- the single-writer SQLite connection
+  (`ledger.Open`'s `SetMaxOpenConns(1)`) plus the caps mutex already added for
+  the Policy console (ruling R) make concurrent `Act()` calls race-free by
+  construction.
+- **Live ticker** (`GET /v1/stream`, Server-Sent Events via a small in-process
+  `Broker` in `internal/api`). Every `/v1/act`, `/v1/demo/run`,
+  `/v1/swarm/run` call and every rollback publishes an event; any number of
+  browser tabs can subscribe. It is explicitly **not durable** -- a tab that
+  wasn't open when an event fired never sees it; the ledger remains the only
+  system of record. A small server-side jitter (60-220ms between calls in
+  `postDemoRun`/`postSwarmRun`) is added purely for watchability -- without
+  it, 17 SQLite writes finish in single-digit milliseconds and the ticker has
+  nothing to show. This does not change `Act()`'s behavior or timing
+  guarantees, only how quickly the *demo driver* fires successive calls.
+- **Time-travel scrubber** (Session view only). Pure client-side replay over
+  data already fetched from `GET /v1/sessions/{id}` -- dragging it dims every
+  row past the chosen point. No new endpoint; the ledger's append-only history
+  is what makes this free.
+
+---
+
 ## Build order
 
 | Slice | Delivers |

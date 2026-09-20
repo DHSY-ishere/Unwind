@@ -6,26 +6,71 @@
 <title>Unwind</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  @property --uw-a {
-    syntax: '<angle>';
-    inherits: false;
-    initial-value: 0deg;
+  :root {
+    --ink: #0a2540;
+    --ink-soft: #425466;
+    --line: rgba(10, 37, 64, 0.08);
+    --bg: #f6f5fb;
+    --card: #ffffff;
+    --purple: #635bff;
+    --purple-2: #8b85ff;
+    --pink: #e619b8;
+    --cyan: #00d4ff;
+    --green: #0f9d63;
+    --green-bg: #e3f8ee;
+    --red: #df1b41;
+    --red-bg: #fdedf0;
+    --amber: #b45309;
+    --amber-bg: #fff6e5;
+    --gray: #697386;
+    --gray-bg: #f1f1f5;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-md: 0 1px 3px rgba(16,24,40,0.06), 0 12px 28px -8px rgba(16, 24, 40, 0.12);
+    --shadow-lg: 0 4px 10px rgba(16,24,40,0.08), 0 24px 48px -12px rgba(16, 24, 40, 0.22);
   }
 
-  html, body { background: #0a0a0f; }
+  html, body { background: var(--bg); }
   body {
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    color: #f5f5f7;
+    color: var(--ink);
     padding-bottom: 6rem;
+    position: relative;
+    overflow-x: hidden;
   }
   .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-  a { color: inherit; }
+  a { color: var(--purple); }
   [hidden] { display: none !important; }
   button { font-family: inherit; }
+  svg { display: block; }
+
+  /* ambient background blobs -- low-opacity, slow drift, just enough life */
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    width: 640px;
+    height: 640px;
+    border-radius: 50%;
+    filter: blur(110px);
+    opacity: 0.16;
+    z-index: -1;
+    pointer-events: none;
+  }
+  body::before {
+    top: -220px; left: -160px;
+    background: radial-gradient(circle, var(--purple), transparent 70%);
+    animation: uw-drift-a 26s ease-in-out infinite alternate;
+  }
+  body::after {
+    bottom: -260px; right: -200px;
+    background: radial-gradient(circle, var(--pink), transparent 70%);
+    animation: uw-drift-b 30s ease-in-out infinite alternate;
+  }
+  @keyframes uw-drift-a { to { transform: translate(80px, 60px) scale(1.1); } }
+  @keyframes uw-drift-b { to { transform: translate(-60px, -50px) scale(1.15); } }
 
   /* ---------- top nav ---------- */
 
@@ -36,162 +81,190 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 14px 24px;
-    background: rgba(10, 10, 15, 0.85);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 16px 28px;
+    background: rgba(246, 245, 251, 0.75);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
   }
   #nav .uw-logo {
-    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-weight: 800;
-    letter-spacing: 0.04em;
+    letter-spacing: -0.01em;
     margin-right: 18px;
-    color: oklch(0.78 0.15 85);
+    background: linear-gradient(120deg, var(--purple), var(--pink));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   .uw-navlink {
-    font-size: 12.5px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: rgba(245, 245, 247, 0.5);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
     background: transparent;
     border: 1px solid transparent;
     border-radius: 999px;
-    padding: 7px 16px;
+    padding: 8px 16px;
     cursor: pointer;
-    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    transition: color 0.2s, background 0.2s, box-shadow 0.2s;
   }
-  .uw-navlink:hover { color: #fff; }
+  .uw-navlink svg { width: 15px; height: 15px; }
+  .uw-navlink:hover { color: var(--ink); background: rgba(10,37,64,0.04); }
   .uw-navlink.active {
-    color: #0a0a0f;
-    background: #f5f5f7;
+    color: #fff;
+    background: linear-gradient(120deg, var(--purple), #7a73ff);
+    box-shadow: 0 4px 12px -2px rgba(99, 91, 255, 0.5);
   }
-  .uw-navlink:disabled { opacity: 0.3; cursor: not-allowed; }
-  #nav-session-id { margin-left: auto; font-size: 11.5px; color: rgba(245,245,247,0.35); }
+  .uw-navlink:disabled { opacity: 0.35; cursor: not-allowed; }
+  #nav-session-id { margin-left: auto; font-size: 12px; color: var(--ink-soft); }
 
-  /* ---------- bento primitives (shared by all views) ---------- */
+  /* ---------- shared card / grid primitives ---------- */
 
   .uw-view {
     container-type: inline-size;
-    padding: 32px 24px 8px;
-    max-width: 1080px;
+    padding: 36px 28px 8px;
+    max-width: 1100px;
     margin: 0 auto;
   }
   .uw-grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    grid-auto-rows: minmax(110px, auto);
-    gap: 14px;
+    grid-auto-rows: minmax(112px, auto);
+    gap: 16px;
   }
   .uw-card {
     position: relative;
-    isolation: isolate;
     grid-column: span 4;
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 6px;
-    padding: 24px;
+    padding: 26px;
     border-radius: 20px;
-    background: radial-gradient(140% 140% at 20% 0%, #1c1c26, #101016);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: transform 0.3s cubic-bezier(.2,.9,.2,1);
-    --accent: oklch(0.78 0.15 85);
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-md);
+    transition: transform 0.25s cubic-bezier(.2,.9,.2,1), box-shadow 0.25s;
   }
-  .uw-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: conic-gradient(from var(--uw-a), transparent, var(--accent), transparent 32%);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.4s;
-    z-index: -1;
-  }
-  .uw-card:hover { transform: translateY(-3px); }
-  .uw-card:hover::before { opacity: 1; animation: uw-spin 2.6s linear infinite; }
-  @keyframes uw-spin { to { --uw-a: 360deg; } }
-  .uw-card.uw-flat:hover { transform: none; }
-  .uw-card.uw-flat:hover::before { opacity: 0; animation: none; }
+  .uw-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .uw-card.uw-flat:hover { transform: none; box-shadow: var(--shadow-md); }
 
   .uw-span6 { grid-column: span 6; }
   .uw-span8 { grid-column: span 8; }
   .uw-span12 { grid-column: span 12; }
   .uw-row2 { grid-row: span 2; }
 
+  /* dark gradient-mesh hero, Stripe's marketing signature */
+  .uw-hero-dark {
+    background: linear-gradient(160deg, #0a2540 0%, #0e1f3a 60%, #12163a 100%);
+    color: #fff;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .uw-hero-dark::before, .uw-hero-dark::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    z-index: -1;
+    opacity: 0.65;
+  }
+  .uw-hero-dark::before {
+    width: 320px; height: 320px; top: -80px; right: -60px;
+    background: radial-gradient(circle, var(--purple-2), transparent 70%);
+    animation: uw-drift-a 14s ease-in-out infinite alternate;
+  }
+  .uw-hero-dark::after {
+    width: 280px; height: 280px; bottom: -90px; left: 10%;
+    background: radial-gradient(circle, var(--pink), transparent 70%);
+    animation: uw-drift-b 18s ease-in-out infinite alternate;
+  }
+  .uw-hero-dark .uw-sub { color: rgba(255,255,255,0.68); }
+  .uw-hero-dark .uw-kicker { color: #b9b3ff; }
+
   .uw-kicker {
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: color-mix(in oklab, var(--accent) 75%, white);
+    color: var(--purple);
   }
   .uw-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: clamp(22px, 4cqw, 32px);
+    font-size: clamp(22px, 3.4cqw, 30px);
     font-weight: 800;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     line-height: 1.15;
     word-break: break-word;
   }
-  .uw-sub { font-size: 13.5px; color: rgba(245, 245, 247, 0.6); line-height: 1.5; }
+  .uw-title.mono { font-family: 'JetBrains Mono', monospace; font-size: clamp(18px, 2.6cqw, 24px); }
+  .uw-sub { font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
   .uw-badge {
-    display: inline-block;
-    padding: 1px 8px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
     border-radius: 999px;
-    border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
-    color: color-mix(in oklab, var(--accent) 85%, white);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
     font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
   }
   .uw-stat {
     font-family: 'JetBrains Mono', monospace;
-    font-size: clamp(26px, 4cqw, 38px);
+    font-size: clamp(28px, 4cqw, 38px);
     font-weight: 800;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
-    background: linear-gradient(180deg, #fff, color-mix(in oklab, var(--accent) 55%, white));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--ink);
   }
-  .uw-cap { font-size: 12.5px; line-height: 1.4; color: rgba(245, 245, 247, 0.55); }
+  .uw-cap { font-size: 12.5px; line-height: 1.4; color: var(--ink-soft); }
+  .uw-icon-badge {
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    margin-bottom: 4px;
+  }
+  .uw-icon-badge svg { width: 18px; height: 18px; }
 
   .uw-btn-solid {
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    color: #0a0a0f;
-    background: #f5f5f7;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #fff;
+    background: linear-gradient(120deg, var(--purple), #7a73ff);
     border: none;
     border-radius: 999px;
-    padding: 12px 24px;
+    padding: 13px 24px;
     cursor: pointer;
-    transition: transform 0.2s, background 0.2s;
+    box-shadow: 0 6px 16px -4px rgba(99, 91, 255, 0.55);
+    transition: transform 0.2s, box-shadow 0.2s;
   }
-  .uw-btn-solid:hover:not(:disabled) { transform: translateY(-2px); background: #fff; }
-  .uw-btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
+  .uw-btn-solid:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px -4px rgba(99, 91, 255, 0.65); }
+  .uw-btn-solid:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
   .uw-btn-ghost {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: rgba(245, 245, 247, 0.75);
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.24);
     border-radius: 999px;
-    padding: 10px 18px;
+    padding: 12px 20px;
     cursor: pointer;
-    transition: border-color 0.2s, color 0.2s;
+    transition: background 0.2s, transform 0.2s;
   }
-  .uw-btn-ghost:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.4); color: #fff; }
-  .uw-btn-ghost:disabled { opacity: 0.35; cursor: not-allowed; }
-  .uw-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .uw-btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.18); transform: translateY(-2px); }
+  .uw-btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+  .uw-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 
   @container (max-width: 880px) {
     .uw-span8, .uw-span6 { grid-column: span 12; }
@@ -202,220 +275,265 @@
     .uw-grid { grid-auto-rows: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .uw-card { transition: none; }
+    .uw-card, body::before, body::after, .uw-hero-dark::before, .uw-hero-dark::after { transition: none; animation: none; }
     .uw-card:hover { transform: none; }
-    .uw-card:hover::before { animation: none; }
   }
 
-  /* ---------- control room: policy console ---------- */
+  /* ---------- policy console ---------- */
 
-  .uw-slider-row { margin-top: 14px; }
+  .uw-slider-row { margin-top: 16px; }
   .uw-slider-label {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
-    color: rgba(245, 245, 247, 0.65);
-    margin-bottom: 6px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
   }
-  .uw-slider-label b { font-family: 'JetBrains Mono', monospace; color: #fff; }
+  .uw-slider-label b { font-family: 'JetBrains Mono', monospace; color: var(--ink); font-size: 13px; }
   input[type="range"] {
+    -webkit-appearance: none;
     width: 100%;
-    accent-color: oklch(0.78 0.15 85);
+    height: 6px;
+    border-radius: 999px;
+    background: var(--gray-bg);
     cursor: pointer;
   }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(120deg, var(--purple), var(--pink));
+    box-shadow: 0 2px 6px rgba(99,91,255,0.5);
+    cursor: pointer;
+    border: 2px solid #fff;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(120deg, var(--purple), var(--pink));
+    box-shadow: 0 2px 6px rgba(99,91,255,0.5);
+    cursor: pointer;
+    border: 2px solid #fff;
+  }
   #policy-readout {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    font-size: 12.5px;
-    color: rgba(245,245,247,0.55);
-    line-height: 1.6;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.7;
   }
-  #policy-readout b { color: #fff; font-family: 'JetBrains Mono', monospace; }
-  #policy-flash {
-    display: inline-block;
-    margin-left: 8px;
-    font-size: 11px;
-    color: #6fd58c;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  #policy-flash.show { opacity: 1; }
+  #policy-readout b { color: var(--ink); font-family: 'JetBrains Mono', monospace; }
 
-  /* ---------- control room: recent sessions ---------- */
+  /* ---------- recent sessions ---------- */
 
-  .uw-sessionlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .uw-sessionlist { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
   .uw-session-row {
     display: grid;
     grid-template-columns: 1fr auto auto;
     gap: 14px;
     align-items: center;
-    padding: 12px 16px;
-    border-radius: 12px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: box-shadow 0.2s, transform 0.2s;
   }
-  .uw-session-row:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
-  .uw-session-id { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
-  .uw-session-meta { font-size: 11.5px; color: rgba(245,245,247,0.4); }
+  .uw-session-row:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .uw-session-id { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
+  .uw-session-meta { font-size: 12px; color: var(--ink-soft); }
 
-  /* ---------- launch feed (control room, after clicking Launch) ---------- */
+  /* ---------- live ticker ---------- */
 
-  #launch-feed {
-    margin-top: 14px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
+  .uw-ticker {
+    background: linear-gradient(160deg, #0a2540, #0e1f3a);
+    border-radius: 16px;
+    padding: 6px 6px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-md);
   }
+  .uw-ticker-line {
+    display: grid;
+    grid-template-columns: 1.1rem 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: #cfd8e3;
+    border-radius: 8px;
+    animation: uw-ticker-in 0.3s ease;
+  }
+  .uw-ticker-line:hover { background: rgba(255,255,255,0.05); }
+  @keyframes uw-ticker-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .uw-ticker-dot { width: 8px; height: 8px; border-radius: 999px; background: #4c5a72; }
+  .uw-ticker-session { color: #8b96ab; }
+  .uw-ticker-tool { color: #fff; font-weight: 600; }
+  .uw-ticker-status-committed { color: #7ee0a6; }
+  .uw-ticker-status-blocked, .uw-ticker-status-denied, .uw-ticker-status-error { color: #ff8a9e; }
+  .uw-ticker-status-compensated { color: #7ee0a6; }
+  .uw-ticker-status-uncompensable { color: #ffd479; }
+
+  /* ---------- launch feed ---------- */
+
+  #launch-feed { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
   .uw-chip {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10.5px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    border: 1px solid currentColor;
+    font-weight: 600;
+    padding: 4px 9px;
+    border-radius: 7px;
     opacity: 0;
     transform: translateY(4px);
     animation: uw-chip-in 0.25s ease forwards;
   }
   @keyframes uw-chip-in { to { opacity: 1; transform: translateY(0); } }
-  .uw-chip-committed { color: #9aa0ab; }
-  .uw-chip-blocked { color: #e8607a; }
-  .uw-chip-other { color: #e8b24a; }
+  .uw-chip-committed { background: rgba(255,255,255,0.1); color: #cfd8e3; }
+  .uw-chip-blocked { background: rgba(223,27,65,0.22); color: #ff8a9e; }
+  .uw-chip-other { background: rgba(255,193,7,0.2); color: #ffd479; }
 
-  /* ---------- pills (status, everywhere) ---------- */
+  /* ---------- status pills (soft tinted, not outlined) ---------- */
 
   .uw-pill {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 10px;
+    padding: 4px 11px;
     border-radius: 999px;
-    border: 1px solid currentColor;
     font-family: 'JetBrains Mono', monospace;
     font-size: 10.5px;
-    letter-spacing: 0.03em;
+    font-weight: 700;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     white-space: nowrap;
   }
-  .uw-pill-committed, .uw-pill-active { color: #9aa0ab; }
-  .uw-pill-blocked, .uw-pill-denied, .uw-pill-failed, .uw-pill-failed_compensation { color: #e8607a; }
-  .uw-pill-uncompensable, .uw-pill-cancelled { color: #e8b24a; }
-  .uw-pill-compensated { color: #6fd58c; }
-  .uw-pill-awaiting_approval { color: #e8b24a; }
-  .uw-pill-pending, .uw-pill-none { color: #6b6f78; }
-  .uw-pill-rolled_back { color: #6fd58c; }
-  .uw-pill-partially_rolled_back { color: #e8b24a; }
+  .uw-pill-committed, .uw-pill-active { background: var(--gray-bg); color: var(--gray); }
+  .uw-pill-blocked, .uw-pill-denied, .uw-pill-failed, .uw-pill-failed_compensation { background: var(--red-bg); color: var(--red); }
+  .uw-pill-uncompensable, .uw-pill-cancelled { background: var(--amber-bg); color: var(--amber); }
+  .uw-pill-compensated, .uw-pill-rolled_back { background: var(--green-bg); color: var(--green); }
+  .uw-pill-awaiting_approval { background: var(--amber-bg); color: var(--amber); }
+  .uw-pill-pending, .uw-pill-none { background: var(--gray-bg); color: var(--gray); }
+  .uw-pill-partially_rolled_back { background: var(--amber-bg); color: var(--amber); }
 
   /* ---------- world view ---------- */
 
-  .uw-account-bar {
-    margin-top: 10px;
-    height: 6px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.08);
-    overflow: hidden;
-  }
-  .uw-account-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, color-mix(in oklab, var(--accent) 60%, transparent), var(--accent));
-    transition: width 0.5s ease;
-  }
-  .uw-account-delta { font-size: 11px; margin-left: 6px; }
-  .uw-delta-down { color: #e8607a; }
-  .uw-delta-up { color: #6fd58c; }
+  .uw-account-bar { margin-top: 12px; height: 7px; border-radius: 999px; background: var(--gray-bg); overflow: hidden; }
+  .uw-account-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--purple), var(--pink)); transition: width 0.6s ease; }
+  .uw-account-delta { font-size: 11.5px; margin-left: 8px; font-weight: 700; }
+  .uw-delta-down { color: var(--red); }
+  .uw-delta-up { color: var(--green); }
 
   .uw-section-label {
-    font-size: 11px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(245,245,247,0.4);
-    margin: 28px 0 10px;
+    color: var(--ink-soft);
+    margin: 32px 0 12px;
   }
-  .uw-vendor-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px;
-  }
+  .uw-section-label svg { width: 15px; height: 15px; color: var(--purple); }
+
+  .uw-vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 9px; }
   .uw-vendor-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 12px;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    font-size: 11.5px;
-    transition: background 0.4s, border-color 0.4s;
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 13px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    font-size: 12px;
+    transition: background 0.5s, border-color 0.5s, box-shadow 0.2s;
   }
-  .uw-vendor-dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
-  .uw-vendor-dot.active { background: #6fd58c; box-shadow: 0 0 8px #6fd58c88; }
-  .uw-vendor-dot.cancelled { background: #55575e; }
-  .uw-vendor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(245,245,247,0.7); }
-  .uw-vendor-chip.uw-just-changed { background: rgba(232, 96, 122, 0.12); border-color: rgba(232,96,122,0.4); }
+  .uw-vendor-chip:hover { box-shadow: var(--shadow-md); }
+  .uw-vendor-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+  .uw-vendor-dot.active { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .uw-vendor-dot.cancelled { background: #c3c9d3; }
+  .uw-vendor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+  .uw-vendor-chip.uw-just-changed { background: var(--red-bg); border-color: rgba(223,27,65,0.25); }
 
   .uw-invoice-row {
     display: grid;
-    grid-template-columns: 6rem 1fr 8rem 8rem;
-    gap: 12px;
+    grid-template-columns: 6.5rem 1fr 9rem 8rem;
+    gap: 14px;
     align-items: center;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    margin-bottom: 6px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
   }
-  .uw-invoice-summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
-  .uw-invoice-summary div { font-size: 12px; color: rgba(245,245,247,0.5); }
-  .uw-invoice-summary b { color: #fff; font-family: 'JetBrains Mono', monospace; }
+  .uw-invoice-summary { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 16px; }
+  .uw-invoice-summary div { font-size: 12.5px; color: var(--ink-soft); }
+  .uw-invoice-summary b { color: var(--ink); font-family: 'JetBrains Mono', monospace; }
+
+  /* ---------- time-travel scrubber ---------- */
+
+  .uw-scrub-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 28px;
+    padding: 14px 20px;
+    border-radius: 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+  }
+  .uw-scrub-row input[type="range"] { flex: 1; }
+  #scrub-label { min-width: 3.5rem; text-align: right; }
+  .uw-row.uw-scrub-future { opacity: 0.28; filter: grayscale(0.6); }
 
   /* ---------- session timeline ---------- */
 
   .uw-timeline-head {
     display: grid;
     grid-template-columns: 3.5rem 1fr 9rem 9rem;
-    gap: 12px;
-    padding: 0 22px 8px;
-    font-size: 10.5px;
-    letter-spacing: 0.08em;
+    gap: 14px;
+    padding: 0 22px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(245, 245, 247, 0.35);
-    margin-top: 24px;
+    color: var(--ink-soft);
+    margin-top: 28px;
   }
   .uw-row {
     position: relative;
-    isolation: isolate;
     display: grid;
     grid-template-columns: 3.5rem 1fr 9rem 9rem;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
-    padding: 14px 22px;
-    margin-bottom: 8px;
+    padding: 15px 22px;
+    margin-bottom: 9px;
     border-radius: 14px;
-    background: radial-gradient(140% 140% at 10% 0%, #16161d, #0d0d12);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    transition: transform 0.2s, border-color 0.2s;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s, box-shadow 0.2s;
   }
-  .uw-row:hover { transform: translateX(2px); border-color: rgba(255, 255, 255, 0.14); }
-  .uw-row-seq { font-family: 'JetBrains Mono', monospace; color: rgba(245, 245, 247, 0.4); font-size: 12.5px; }
-  .uw-row-tool { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13.5px; }
-  .uw-row-args { font-family: 'JetBrains Mono', monospace; color: rgba(245, 245, 247, 0.45); font-size: 12px; margin-top: 2px; }
-  .uw-row-rev { display: inline-block; margin-top: 4px; font-size: 10.5px; color: #e8b24a; letter-spacing: 0.03em; }
-  .uw-row-amount { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; }
-  .uw-row-amount.uw-struck { text-decoration: line-through; text-decoration-thickness: 1px; color: rgba(245, 245, 247, 0.35); }
+  .uw-row:hover { transform: translateX(3px); box-shadow: var(--shadow-md); }
+  .uw-row-seq { font-family: 'JetBrains Mono', monospace; color: #a0a8b8; font-size: 12.5px; }
+  .uw-row-tool { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13.5px; color: var(--ink); }
+  .uw-row-args { font-family: 'JetBrains Mono', monospace; color: var(--ink-soft); font-size: 12px; margin-top: 3px; }
+  .uw-row-rev { display: inline-block; margin-top: 5px; font-size: 10.5px; font-weight: 700; color: var(--amber); letter-spacing: 0.03em; }
+  .uw-row-amount { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; font-weight: 600; }
+  .uw-row-amount.uw-struck { text-decoration: line-through; text-decoration-thickness: 1.5px; color: #b7bec9; }
   .uw-row .uw-pill { justify-self: end; }
-  #empty { padding: 30px 22px; color: rgba(245, 245, 247, 0.4); font-size: 13px; }
+  #empty { padding: 34px 22px; color: var(--ink-soft); font-size: 13px; text-align: center; }
 
   @container (max-width: 640px) {
     .uw-timeline-head { display: none; }
     .uw-row { grid-template-columns: 1fr; row-gap: 6px; }
     .uw-row-amount { text-align: left; }
     .uw-row .uw-pill { justify-self: start; }
-    .uw-invoice-row { grid-template-columns: 1fr; row-gap: 4px; }
+    .uw-invoice-row { grid-template-columns: 1fr; row-gap: 5px; }
   }
 
   @keyframes uw-flip {
@@ -426,18 +544,25 @@
   }
   .uw-flip { animation: uw-flip 340ms ease-in-out; transform-style: preserve-3d; }
 
+  @keyframes uw-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(15, 157, 99, 0.35); }
+    50% { box-shadow: 0 0 0 8px rgba(15, 157, 99, 0); }
+  }
+  .uw-just-compensated { animation: uw-pulse 0.9s ease-out 1; }
+
   /* ---------- rollback footer ---------- */
 
   #footer {
     position: fixed;
     left: 0; right: 0; bottom: 0;
-    background: rgba(10, 10, 15, 0.9);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 14px 24px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+    padding: 16px 28px;
+    box-shadow: 0 -8px 24px rgba(16,24,40,0.06);
   }
   .uw-footer-inner {
-    max-width: 1080px;
+    max-width: 1100px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -445,51 +570,77 @@
     gap: 12px;
     flex-wrap: wrap;
   }
-  #footer-msg { font-size: 12px; color: rgba(245, 245, 247, 0.45); }
+  #footer-msg { font-size: 12.5px; color: var(--ink-soft); }
   .uw-btn-danger {
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.05em;
-    color: #0a0a0f;
-    background: linear-gradient(180deg, #f0879a, #e8607a);
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #fff;
+    background: linear-gradient(120deg, #ff5a72, var(--red));
     border: none;
     border-radius: 999px;
-    padding: 12px 26px;
+    padding: 13px 26px;
     cursor: pointer;
-    transition: transform 0.2s, filter 0.2s;
+    box-shadow: 0 6px 16px -4px rgba(223, 27, 65, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
   }
-  .uw-btn-danger:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
-  .uw-btn-danger:disabled { opacity: 0.3; cursor: not-allowed; }
+  .uw-btn-danger:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px -4px rgba(223, 27, 65, 0.6); }
+  .uw-btn-danger:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 </style>
 </head>
 <body>
 
 <nav id="nav">
-  <span class="uw-logo">UNWIND</span>
-  <button class="uw-navlink" data-view="control">Control Room</button>
-  <button class="uw-navlink" data-view="world">World</button>
-  <button class="uw-navlink" id="nav-session" data-view="session" disabled>Session</button>
+  <span class="uw-logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+    Unwind
+  </span>
+  <button class="uw-navlink active" data-view="control">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+    Control Room
+  </button>
+  <button class="uw-navlink" data-view="world">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    World
+  </button>
+  <button class="uw-navlink" id="nav-session" data-view="session" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Session
+  </button>
   <span id="nav-session-id"></span>
 </nav>
 
 <!-- ===================== CONTROL ROOM ===================== -->
 <section id="view-control" class="uw-view">
   <div class="uw-grid">
-    <article class="uw-card uw-span8 uw-row2">
+    <article class="uw-card uw-hero-dark uw-span8 uw-row2 uw-flat">
       <p class="uw-kicker">Unwind</p>
       <h1 class="uw-title">Launch the agent</h1>
       <p class="uw-sub">Fires 17 calls &mdash; 12 cancellations, 4 refunds, 1 funds transfer &mdash;
         through the write-ahead ledger against whatever caps are live on the right.
         Nothing here needs a terminal.</p>
       <div class="uw-actions">
-        <button id="launch-btn" class="uw-btn-solid">LAUNCH AGENT</button>
-        <button id="reset-btn" class="uw-btn-ghost">RESET WORLD</button>
+        <button id="launch-btn" class="uw-btn-solid">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg>
+          LAUNCH AGENT
+        </button>
+        <button id="swarm-btn" class="uw-btn-ghost">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M2 20c0-3.3 3.13-6 7-6s7 2.7 7 6"/><circle cx="18" cy="7" r="2.4"/><path d="M15.5 3.5c1.5-.6 3.2-.2 4.2 1"/><path d="M22 19c0-2.6-2-4.7-4.7-5.4"/></svg>
+          LAUNCH SWARM
+        </button>
+        <button id="reset-btn" class="uw-btn-ghost">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          RESET WORLD
+        </button>
       </div>
       <div id="launch-feed"></div>
-      <div id="launch-summary" class="uw-sub" style="margin-top:8px;"></div>
+      <div id="launch-summary" class="uw-sub" style="margin-top:10px;"></div>
     </article>
 
-    <article class="uw-card uw-span8" style="--accent: oklch(0.7 0.15 30);">
+    <article class="uw-card uw-span8">
+      <div class="uw-icon-badge" style="background: linear-gradient(120deg, rgba(99,91,255,0.12), rgba(230,25,184,0.12));">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
       <p class="uw-kicker">Policy console</p>
       <p class="uw-sub" style="margin-bottom: -4px;">Live &mdash; edits apply to the very next call, no restart.</p>
 
@@ -509,7 +660,17 @@
     </article>
   </div>
 
-  <p class="uw-section-label">Recent sessions</p>
+  <p class="uw-section-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+    Live feed
+    <span id="ticker-live-dot" style="width:6px;height:6px;border-radius:999px;background:var(--green);margin-left:2px;box-shadow:0 0 0 3px var(--green-bg);"></span>
+  </p>
+  <div id="ticker" class="uw-ticker"><p class="uw-cap" style="padding:14px 4px;">Listening for activity across every session&hellip;</p></div>
+
+  <p class="uw-section-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Recent sessions
+  </p>
   <div id="session-list" class="uw-sessionlist"></div>
 </section>
 
@@ -517,10 +678,16 @@
 <section id="view-world" class="uw-view" hidden>
   <div class="uw-grid" id="world-accounts"></div>
 
-  <p class="uw-section-label">Vendor subscriptions</p>
+  <p class="uw-section-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Vendor subscriptions
+  </p>
   <div class="uw-vendor-grid" id="world-vendors"></div>
 
-  <p class="uw-section-label">Invoices</p>
+  <p class="uw-section-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Invoices
+  </p>
   <div class="uw-invoice-summary" id="world-invoice-summary"></div>
   <div id="world-invoices"></div>
 </section>
@@ -528,15 +695,21 @@
 <!-- ===================== SESSION ===================== -->
 <section id="view-session" class="uw-view" hidden>
   <div class="uw-grid">
-    <article class="uw-card uw-span8 uw-row2">
+    <article class="uw-card uw-hero-dark uw-span8 uw-row2 uw-flat">
       <p class="uw-kicker">Session</p>
-      <h1 id="hdr-session" class="uw-title">&mdash;</h1>
-      <p class="uw-sub">policy <span id="hdr-mode" class="uw-badge">&mdash;</span> &middot; status <span id="stat-status" class="mono">&mdash;</span></p>
+      <h1 id="hdr-session" class="uw-title mono">&mdash;</h1>
+      <p class="uw-sub">policy <span id="hdr-mode" class="uw-badge">&mdash;</span> &middot; status <span id="stat-status" class="mono" style="color:#fff;">&mdash;</span></p>
     </article>
     <article class="uw-card"><p class="uw-stat" id="stat-mutations">0</p><p class="uw-cap">Mutations committed</p></article>
     <article class="uw-card"><p class="uw-stat" id="stat-amount">&#8377;0</p><p class="uw-cap">Moved across committed intents</p></article>
     <article class="uw-card uw-span6"><p class="uw-stat" id="stat-compensated">0</p><p class="uw-cap">Compensated on rollback</p></article>
     <article class="uw-card uw-span6"><p class="uw-stat" id="stat-uncompensable">0</p><p class="uw-cap">Uncompensable &mdash; irreversible by design</p></article>
+  </div>
+
+  <div class="uw-scrub-row" id="scrub-row" hidden>
+    <span class="uw-cap" style="white-space:nowrap;">time travel</span>
+    <input type="range" id="scrub" min="0" max="0" value="0" />
+    <span class="uw-cap mono" id="scrub-label" style="white-space:nowrap;">live</span>
   </div>
 
   <div class="uw-timeline-head">
@@ -553,7 +726,10 @@
 <div id="footer" hidden>
   <div class="uw-footer-inner">
     <div id="footer-msg"></div>
-    <button id="rollback-btn" class="uw-btn-danger">ROLLBACK SESSION</button>
+    <button id="rollback-btn" class="uw-btn-danger">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      ROLLBACK SESSION
+    </button>
   </div>
 </div>
 
@@ -565,6 +741,7 @@
   let currentView = 'control';
   let lastStatuses = {};
   let lastBalances = {};
+  let lastStatNumbers = {};
 
   // ---------- formatting ----------
 
@@ -602,6 +779,24 @@
     }).join(' ');
   }
 
+  // count-up tween for stat numbers -- the bit of "alive" that a static
+  // number swap never gives you. Only animates plain integers; currency
+  // strings are set to their target text but still get a brief scale pulse.
+  function animateStat(el, key, targetValue, formatter) {
+    const prev = lastStatNumbers[key];
+    lastStatNumbers[key] = targetValue;
+    if (prev === undefined) { el.textContent = formatter(targetValue); return; }
+    if (prev === targetValue) return;
+    const from = prev, to = targetValue, duration = 450, start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = formatter(Math.round(from + (to - from) * eased));
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
   // ---------- nav / view switching ----------
 
   function showView(name) {
@@ -627,7 +822,7 @@
 
   function readoutText(cancelCap, refundCap, maxMut) {
     return `With these caps: the agent may cancel <b>${cancelCap}</b> subscriptions and issue <b>${refundCap}</b> refunds before ` +
-      `<span class="uw-pill uw-pill-blocked" style="padding:1px 6px;">blocked</span> starts appearing, and no more than <b>${maxMut}</b> ` +
+      `<span class="uw-pill uw-pill-blocked">blocked</span> starts appearing, and no more than <b>${maxMut}</b> ` +
       `total mutations land in one session regardless of tool.`;
   }
 
@@ -676,6 +871,62 @@
     $(id).addEventListener('change', applyPolicy);
   });
 
+  // ---------- live ticker (real SSE, not a simulated stagger) ----------
+
+  let launchInProgress = false; // while true, every ticker event also renders as a chip in #launch-feed
+
+  function openSessionFromLaunch(id) {
+    history.replaceState(null, '', `?session=${encodeURIComponent(id)}`);
+    sessionID = id;
+    $('nav-session').disabled = false;
+    $('nav-session-id').textContent = sessionID;
+    loadSessionData().then(() => showView('session'));
+  }
+
+  function tickerLine(ev) {
+    const dotStyle = ev.color ? `style="background:${ev.color}"` : '';
+    if (ev.type === 'rollback') {
+      return `
+        <span class="uw-ticker-dot" style="background:#7ee0a6"></span>
+        <span class="uw-ticker-session">${ev.session_id}</span>
+        <span class="uw-ticker-tool">rollback</span>
+        <span class="uw-ticker-status-compensated">${ev.compensated} compensated${ev.uncompensable ? `, ${ev.uncompensable} uncompensable` : ''}${ev.failed ? `, ${ev.failed} failed` : ''}</span>
+      `;
+    }
+    return `
+      <span class="uw-ticker-dot" ${dotStyle}></span>
+      <span class="uw-ticker-session">${ev.agent || ev.session_id}</span>
+      <span class="uw-ticker-tool">${ev.tool}</span>
+      <span class="uw-ticker-status-${ev.status}">${glyph(ev.status)} ${ev.status}</span>
+    `;
+  }
+
+  function appendTicker(ev) {
+    const wrap = $('ticker');
+    if (wrap.dataset.empty) { wrap.innerHTML = ''; delete wrap.dataset.empty; }
+    const line = document.createElement('div');
+    line.className = 'uw-ticker-line';
+    line.innerHTML = tickerLine(ev);
+    wrap.prepend(line);
+    while (wrap.children.length > 40) wrap.removeChild(wrap.lastChild);
+
+    if (launchInProgress && ev.type === 'act') {
+      const chip = document.createElement('span');
+      const cls = ev.status === 'committed' ? 'uw-chip-committed' : ev.status === 'blocked' ? 'uw-chip-blocked' : 'uw-chip-other';
+      chip.className = 'uw-chip ' + cls;
+      if (ev.color) chip.style.cssText = `background:${ev.color}22;color:${ev.color};`;
+      chip.textContent = `${ev.agent ? ev.agent + ': ' : ''}${ev.tool} ${glyph(ev.status)}`;
+      $('launch-feed').appendChild(chip);
+    }
+  }
+
+  $('ticker').dataset.empty = '1';
+  try {
+    const stream = new EventSource('/v1/stream');
+    stream.onmessage = (e) => { try { appendTicker(JSON.parse(e.data)); } catch (err) {} };
+    stream.onerror = () => { $('ticker-live-dot').style.background = 'var(--red)'; };
+  } catch (e) { /* SSE unsupported -- ticker just stays empty, nothing else depends on it */ }
+
   // ---------- control room: launch / reset ----------
 
   async function launchAgent() {
@@ -684,51 +935,61 @@
     btn.textContent = 'LAUNCHING…';
     $('launch-feed').innerHTML = '';
     $('launch-summary').textContent = '';
+    launchInProgress = true;
     try {
       const res = await fetch('/v1/demo/run', { method: 'POST' });
       const data = await res.json();
-      data.results.forEach((r, i) => {
-        setTimeout(() => {
-          const chip = document.createElement('span');
-          const cls = r.status === 'committed' ? 'uw-chip-committed' : r.status === 'blocked' ? 'uw-chip-blocked' : 'uw-chip-other';
-          chip.className = 'uw-chip ' + cls;
-          chip.textContent = `${i + 1}. ${r.tool} ${glyph(r.status)}`;
-          $('launch-feed').appendChild(chip);
-        }, i * 80);
-      });
-      setTimeout(() => {
-        $('launch-summary').innerHTML =
-          `Session <b class="mono">${data.session_id}</b> &middot; ${data.committed} committed, ${data.blocked} blocked` +
-          (data.other ? `, ${data.other} other` : '') + `. <a href="?session=${encodeURIComponent(data.session_id)}" id="open-launched">Open timeline &rarr;</a>`;
-        $('open-launched').addEventListener('click', (e) => {
-          e.preventDefault();
-          history.replaceState(null, '', `?session=${encodeURIComponent(data.session_id)}`);
-          sessionID = data.session_id;
-          $('nav-session').disabled = false;
-          $('nav-session-id').textContent = sessionID;
-          loadSessionData().then(() => showView('session'));
-        });
-        btn.disabled = false;
-        btn.textContent = 'LAUNCH AGENT';
-        refreshSessionList();
-      }, data.results.length * 80 + 200);
+      $('launch-summary').innerHTML =
+        `Session <b class="mono">${data.session_id}</b> &middot; ${data.committed} committed, ${data.blocked} blocked` +
+        (data.other ? `, ${data.other} other` : '') + `. <a href="?session=${encodeURIComponent(data.session_id)}" id="open-launched">Open timeline &rarr;</a>`;
+      $('open-launched').addEventListener('click', (e) => { e.preventDefault(); openSessionFromLaunch(data.session_id); });
+      refreshSessionList();
     } catch (e) {
+      $('launch-summary').textContent = 'Launch failed -- is the server still up?';
+    } finally {
+      launchInProgress = false;
       btn.disabled = false;
       btn.textContent = 'LAUNCH AGENT';
     }
   }
   $('launch-btn').addEventListener('click', launchAgent);
 
+  async function launchSwarm() {
+    const btn = $('swarm-btn');
+    btn.disabled = true;
+    $('launch-btn').disabled = true;
+    $('launch-feed').innerHTML = '';
+    $('launch-summary').textContent = '';
+    launchInProgress = true;
+    try {
+      const res = await fetch('/v1/swarm/run', { method: 'POST' });
+      const data = await res.json();
+      const perAgent = data.agents.map(a =>
+        `<span style="color:${a.color};font-weight:700;">${a.agent}</span> ${a.committed}✓/${a.blocked}✘`
+      ).join(' &middot; ');
+      $('launch-summary').innerHTML =
+        `Session <b class="mono">${data.session_id}</b> &middot; ${perAgent}. ` +
+        `<a href="?session=${encodeURIComponent(data.session_id)}" id="open-launched">Open timeline &rarr;</a>`;
+      $('open-launched').addEventListener('click', (e) => { e.preventDefault(); openSessionFromLaunch(data.session_id); });
+      refreshSessionList();
+    } catch (e) {
+      $('launch-summary').textContent = 'Swarm launch failed -- is the server still up?';
+    } finally {
+      launchInProgress = false;
+      btn.disabled = false;
+      $('launch-btn').disabled = false;
+    }
+  }
+  $('swarm-btn').addEventListener('click', launchSwarm);
+
   $('reset-btn').addEventListener('click', async () => {
     const btn = $('reset-btn');
     btn.disabled = true;
-    btn.textContent = 'RESETTING…';
     try {
       await fetch('/v1/world/reset', { method: 'POST' });
       if (currentView === 'world') renderWorld(await (await fetch('/v1/world')).json());
     } finally {
       btn.disabled = false;
-      btn.textContent = 'RESET WORLD';
     }
   });
 
@@ -815,7 +1076,7 @@
         row.className = 'uw-invoice-row';
         row.innerHTML = `
           <div>${inv.id}</div>
-          <div style="color:rgba(245,245,247,0.5)">${inv.vendor_id}</div>
+          <div style="color:var(--ink-soft)">${inv.vendor_id}</div>
           <div style="text-align:right">${rupees(inv.refunded_amount_minor)} / ${rupees(inv.amount_minor)}</div>
           <div class="uw-pill uw-pill-${inv.status === 'contested' ? 'uncompensable' : 'compensated'}" style="justify-self:end">${inv.status}</div>
         `;
@@ -866,10 +1127,10 @@
       if (i.status === 'compensated') compensated++;
       if (i.status === 'uncompensable') uncompensable++;
     });
-    $('stat-mutations').textContent = mutations;
-    $('stat-amount').textContent = rupees(amount);
-    $('stat-compensated').textContent = compensated;
-    $('stat-uncompensable').textContent = uncompensable;
+    animateStat($('stat-mutations'), 'mutations', mutations, v => String(v));
+    animateStat($('stat-amount'), 'amount', amount, v => rupees(v));
+    animateStat($('stat-compensated'), 'compensated', compensated, v => String(v));
+    animateStat($('stat-uncompensable'), 'uncompensable', uncompensable, v => String(v));
 
     const sorted = [...intents].sort((a, b) => a.seq - b.seq);
     $('empty').hidden = sorted.length > 0;
@@ -885,7 +1146,48 @@
     $('footer-msg').textContent = session.status === 'active'
       ? 'reverses every committed intent, most recent first'
       : `session is ${session.status}`;
+
+    updateScrubRange(sorted.length);
   }
+
+  // ---------- time-travel scrubber ----------
+  // Pure client-side replay over data already fetched -- no new endpoint.
+  // `scrubAt === null` means "live": always show the latest state and track
+  // new intents as they arrive; dragging pins the view to a point in history
+  // until released back to the max.
+
+  let scrubAt = null;
+
+  function updateScrubRange(count) {
+    const input = $('scrub');
+    $('scrub-row').hidden = count === 0;
+    input.max = count;
+    if (scrubAt === null || scrubAt >= count) {
+      input.value = count;
+      $('scrub-label').textContent = 'live';
+    } else {
+      input.value = scrubAt;
+      $('scrub-label').textContent = `#${scrubAt}`;
+    }
+    applyScrub();
+  }
+
+  function applyScrub() {
+    const max = Number($('scrub').max);
+    const at = scrubAt === null ? max : scrubAt;
+    document.querySelectorAll('#rows .uw-row').forEach(el => {
+      const seq = Number(el.querySelector('.uw-row-seq').textContent.replace('#', ''));
+      el.classList.toggle('uw-scrub-future', seq > at);
+    });
+  }
+
+  $('scrub').addEventListener('input', () => {
+    const val = Number($('scrub').value);
+    const max = Number($('scrub').max);
+    scrubAt = val >= max ? null : val;
+    $('scrub-label').textContent = scrubAt === null ? 'live' : `#${scrubAt}`;
+    applyScrub();
+  });
 
   async function loadSessionData() {
     if (!sessionID) return false;
@@ -900,6 +1202,7 @@
   async function doRollback() {
     const btn = $('rollback-btn');
     btn.disabled = true;
+    const originalHTML = btn.innerHTML;
     btn.textContent = 'ROLLING BACK…';
     try {
       await fetch(`/v1/sessions/${encodeURIComponent(sessionID)}/rollback`, { method: 'POST' });
@@ -914,7 +1217,8 @@
           setTimeout(() => {
             const el = ensureRow(i);
             el.classList.add('uw-flip');
-            setTimeout(() => el.classList.remove('uw-flip'), 380);
+            setTimeout(() => { el.classList.remove('uw-flip'); el.classList.add('uw-just-compensated'); }, 380);
+            setTimeout(() => el.classList.remove('uw-just-compensated'), 1300);
           }, d);
           delay += 60;
         } else {
@@ -924,10 +1228,10 @@
       setTimeout(() => {
         renderSession(data.session, data.intents);
         lastStatuses = Object.fromEntries(data.intents.map(i => [i.id, i.status]));
-        btn.textContent = 'ROLLBACK SESSION';
+        btn.innerHTML = originalHTML;
       }, delay + 420);
     } catch (e) {
-      btn.textContent = 'ROLLBACK SESSION';
+      btn.innerHTML = originalHTML;
       btn.disabled = false;
     }
   }
@@ -941,8 +1245,6 @@
         renderWorld(await (await fetch('/v1/world')).json());
       } else if (currentView === 'session' && sessionID) {
         await loadSessionData();
-      } else if (currentView === 'control') {
-        // recent sessions refresh quietly; policy/world stay put until acted on
       }
     } catch (e) { /* quiet -- next tick retries */ }
   }

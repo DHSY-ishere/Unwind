@@ -46,3 +46,44 @@ func RogueSequence() []Action {
 		cancel(11), cancel(12),
 	}
 }
+
+// Agent is one named, colored caller in the swarm. There is no code-level
+// concept of an "agent" below the API layer -- Act() has no idea who called
+// it, which is the point (DECISIONS.md S): the policy gate arbitrates a
+// shared session budget regardless of which caller is asking.
+type Agent struct {
+	Name  string
+	Color string // CSS color the UI renders this agent's events in
+}
+
+var (
+	AgentAlpha = Agent{Name: "Cutter-Alpha", Color: "#e619b8"}  // cancels subscriptions
+	AgentBeta  = Agent{Name: "Refund-Beta", Color: "#00b8d9"}   // issues refunds
+	AgentGamma = Agent{Name: "Finance-Gamma", Color: "#f5a623"} // moves funds
+)
+
+// SwarmAction pairs an Action with the agent that sends it.
+type SwarmAction struct {
+	Action
+	Agent Agent
+}
+
+// SwarmPlan splits RogueSequence's exact calls across three concurrently
+// running agents, grouped by tool -- a cost-cutter canceling subscriptions,
+// a refund processor, and a finance-ops agent making the one irreversible
+// transfer. Same 17 calls as the single-agent run, same shared session, now
+// three independent callers racing against one policy gate at once.
+func SwarmPlan() map[Agent][]Action {
+	plan := map[Agent][]Action{}
+	for _, a := range RogueSequence() {
+		switch a.Tool {
+		case "cancel_subscription":
+			plan[AgentAlpha] = append(plan[AgentAlpha], a)
+		case "issue_refund":
+			plan[AgentBeta] = append(plan[AgentBeta], a)
+		case "transfer_funds":
+			plan[AgentGamma] = append(plan[AgentGamma], a)
+		}
+	}
+	return plan
+}
